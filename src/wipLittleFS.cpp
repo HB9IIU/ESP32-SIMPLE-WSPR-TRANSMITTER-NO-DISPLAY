@@ -1,5 +1,4 @@
 #include <WiFi.h>
-//#include <SPIFFS.h>
 #include <LittleFS.h>         
 #define FILESYSTEM LittleFS   
 #include <AsyncTCP.h>
@@ -103,7 +102,6 @@ void manuallyResyncTime();
 void initialTimeSynViaSNTP();
 bool syncTimeFromGPS(unsigned long timeoutMs = 5000);
 String latLonToMaidenhead(float lat, float lon);
-void transmitWSPRTask(void *parameter);
 // ################################################################################################
 // Prototype declarations
 // related to WSPR
@@ -137,16 +135,13 @@ void setup()
     Serial.begin(115200);
     delay(4000);
 
-    // Initialize SPIFFS.  // LittleFS
-   // if (!SPIFFS.begin(true))
-if (!FILESYSTEM.begin(true))
-
-
+    // Initialize LittleFS
+    if (!FILESYSTEM.begin(true))
     {
-        Serial.println("An error occurred while mounting LITTLEFS");
+        Serial.println("An error occurred while mounting LittleFS");
         return;
     }
-    Serial.println("LITTLEFS mounted successfully");
+    Serial.println("LittleFS mounted successfully");
     // Connect to Wi-Fi
     WiFi.begin(ssid, password);
     Serial.print("Connecting to Wi-Fi");
@@ -171,7 +166,6 @@ if (!FILESYSTEM.begin(true))
     configure_web_server();
 }
 //---------------------------------------------------------------------------------------------
-
 void loop()
 {
 
@@ -398,7 +392,7 @@ void si5351_WarmingUp()
     si5351.set_clock_pwr(SI5351_CLK0, 1); // Power ON
 }
 
-void startTransmissionOLD()
+void startTransmission()
 {
     tx_is_ON = true;
 
@@ -419,33 +413,6 @@ void startTransmissionOLD()
     // Wait for the task to complete and clean up
     vTaskDelete(txCounterTaskHandle);
     txCounterTaskHandle = NULL;
-}
-
-void startTransmission()
-{
-    tx_is_ON = true;
-
-    // Start the TX counter task (on Core 0)
-    xTaskCreatePinnedToCore(
-        TX_ON_counter_core0,
-        "TXCounterTask",
-        1536,
-        NULL,
-        1,
-        &txCounterTaskHandle,
-        0 // Core 0
-    );
-
-    // Start the WSPR transmit task (on Core 1)
-    xTaskCreatePinnedToCore(
-        transmitWSPRTask,
-        "WSPR_TX_Task",
-        4096,
-        NULL,
-        1,
-        NULL,
-        1 // Core 1
-    );
 }
 
 // ✅ Returns a randomized safe WSPR transmit frequency for a given band index
@@ -1045,35 +1012,4 @@ String latLonToMaidenhead(float lat, float lon)
     maiden[6] = '\0';
 
     return String(maiden);
-}
-
-void transmitWSPRTask(void *parameter)
-{
-    Serial.println("📡 --- TX Task Started on Core 1 ---");
-
-    // 🔊 Transmit each WSPR symbol (162 total)
-    for (int i = 0; i < SYMBOL_COUNT; i++)
-    {
-        if (interruptWSPRcurrentTX)
-        {
-            Serial.println("⚠️ Transmission interrupted.");
-            break;
-        }
-
-        uint64_t toneFreq = WSPR_TX_operatingFrequ + (tx_buffer[i] * TONE_SPACING);
-        si5351.set_freq(toneFreq, SI5351_CLK0);
-
-        // Use FreeRTOS delay instead of delay()
-        vTaskDelay(pdMS_TO_TICKS(WSPR_DELAY));
-    }
-
-    // 📴 Turn off transmitter
-    si5351.set_clock_pwr(SI5351_CLK0, 0);
-    warmingup = false;
-    tx_is_ON = false;
-
-    Serial.println("📴 --- TX Task Complete ---");
-
-    // 🧹 Clean up task
-    vTaskDelete(NULL);
 }
