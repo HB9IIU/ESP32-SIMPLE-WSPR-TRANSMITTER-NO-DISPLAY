@@ -95,13 +95,14 @@ void initSI5351();
 String convertPosixToHHMMSS(time_t posixTime);
 void si5351_WarmingUp();
 void transmitWSPR();
-void startTransmission();
+
 String formatFrequencyWithDots(unsigned freq);
-void TX_ON_counter_core0(void *parameter);
+
 void manuallyResyncTime();
 void initialTimeSynViaSNTP();
 bool syncTimeFromGPS(unsigned long timeoutMs = 5000);
 String latLonToMaidenhead(float lat, float lon);
+void wsprTXTask(void *parameter);
 // ################################################################################################
 // Prototype declarations
 // related to WSPR
@@ -240,7 +241,15 @@ void loop()
     }
 
     // Begin transmission
-    startTransmission();
+   xTaskCreatePinnedToCore(
+    wsprTXTask,         // Task function
+    "WSPR_TX_Task",     // Name
+    4096,               // Stack size in words (larger since it includes WSPR encode + TX)
+    NULL,               // Parameter
+    1,                  // Priority
+    NULL,               // No handle needed
+    1                   // Run on Core 1
+);
     // If interrupted, skip TX
     if (!interruptWSPRcurrentTX)
     {
@@ -392,28 +401,6 @@ void si5351_WarmingUp()
     si5351.set_clock_pwr(SI5351_CLK0, 1); // Power ON
 }
 
-void startTransmission()
-{
-    tx_is_ON = true;
-
-    xTaskCreatePinnedToCore(
-        TX_ON_counter_core0,  // Task function
-        "TXCounterTask",      // Name of the task
-        1536,                 // Stack size in words
-        NULL,                 // Task input parameter
-        1,                    // Priority of the task
-        &txCounterTaskHandle, // Task handle
-        0                     // Core to pin the task to (0 in this case)
-    );
-
-    transmitWSPR();
-    tx_is_ON = false;
-    tx_ON_running_time_in_s = 0;
-
-    // Wait for the task to complete and clean up
-    vTaskDelete(txCounterTaskHandle);
-    txCounterTaskHandle = NULL;
-}
 
 // ✅ Returns a randomized safe WSPR transmit frequency for a given band index
 unsigned long setRandomWSPRfrequency(byte bandIndex)
@@ -444,23 +431,6 @@ String formatFrequencyWithDots(unsigned freq)
     return s;
 }
 
-void TX_ON_counter_core0(void *parameter)
-{
-    tx_ON_running_time_in_s = 0;
-
-    while (tx_is_ON == true)
-    {
-        tx_ON_running_time_in_s = tx_ON_running_time_in_s + 1;
-        // The transmission occupies exactly 110.592 seconds ( rounded to 110).
-
-        // Serial.printf("TX ON counter: %d seconds\n", tx_ON_running_time_in_s);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-
-    // Delete the task if tx_is_ON is false to free resources
-    vTaskDelete(NULL);
-    txCounterTaskHandle = NULL;
-}
 
 void displaySelecetdBandInformation(byte bandIndex)
 {
@@ -508,6 +478,7 @@ void transmitWSPR()
         uint64_t toneFreq = WSPR_TX_operatingFrequ + (tx_buffer[i] * TONE_SPACING);
         si5351.set_freq(toneFreq, SI5351_CLK0);
         delay(WSPR_DELAY);
+        yield();
         if (interruptWSPRcurrentTX == true)
         {
             break; // Exit the for loop
@@ -1012,4 +983,41 @@ String latLonToMaidenhead(float lat, float lon)
     maiden[6] = '\0';
 
     return String(maiden);
+}
+
+
+void wsprTXTask(void *parameter)
+{
+    tx_is_ON = true;
+    tx_ON_running_time_in_s = 0;
+    unsigned long lastTick = millis();
+
+    Serial.println("🧵 TX task started on background thread.");
+
+    // Create a timestamp counter inside the same thread (instead of separate task)
+    while (tx_ON_running_time_in_s < 110 && !interruptWSPRcurrentTX)
+    {
+        if (millis() - lastTick >= 1000)
+        {
+            tx_ON_running_time_in_s++;
+            lastTick = millis();
+        }
+
+        yield(); // Let other tasks run
+        delay(10); // Avoid tight spin
+    }
+
+    if (!interruptWSPRcurrentTX)
+    {
+        transmitWSPR(); // This includes symbol-by-symbol tone sending
+    }
+
+    // Turn off clock after TX
+    si5351.set_clock_pwr(SI5351_CLK0, 0);
+    warmingup = false;
+    tx_is_ON = false;
+
+    Serial.println("📴 --- TX OFF: Background transmission complete ---");
+
+    vTaskDelete(NULL); // Kill self
 }
