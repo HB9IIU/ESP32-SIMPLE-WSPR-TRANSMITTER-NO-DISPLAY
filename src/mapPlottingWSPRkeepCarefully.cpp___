@@ -1,0 +1,736 @@
+#include <myconfig.h> // your configuration
+#include <WiFi.h>     // Wi-Fi Library
+#include <ESPmDNS.h>  // For mDNS (local hostname resolution)
+#include <PNGdec.h>   //PNG image decoding library
+#include <TFT_eSPI.h> //TFT graphics library
+#include <HTTPClient.h>
+#include "SPIFFS.h"
+PNG png;                   // create png instance
+TFT_eSPI tft = TFT_eSPI(); // create tft instance
+
+//---------------------------------------------------------------------------------------------
+// WSPR MAP and TABLE REALTED
+float homeLatitude = 46.0; // default fallback
+float homeLongitude = 6.0; // default fallback
+int timeZoneOffsetInHoursForWSPRtable = 2;
+int hoursToSubtractInWSPRquery = 24; // default fallback value
+const int maxWSPRentries = 50;
+char call[8]; // USER CALLSIGN, loaded from preferences
+char loc[7];  // USER MAIDENHEAD GRID LOCATOR first 6 letters.
+struct WSPRspot
+{
+    String time;
+    String callsign;
+    String band;
+    String distance;
+    float lat;
+    float lon;
+};
+WSPRspot WSPRspots[maxWSPRentries];
+int totalWSPRentries = 0;
+unsigned long lastWSPRfetchTime = 0;
+unsigned long lastWSPRScreenChange = 0;
+int WSPRscreenCycleIndex = 0;
+const unsigned long WSPRfetchInterval = 5 * 60 * 1000; // 5 minutes
+struct WSPRbandMap
+{
+    int bandValue;
+    const char *bandLabel;
+};
+WSPRbandMap bands[] = {
+    {3, "80"}, {5, "60"}, {7, "40"}, {10, "30"}, {14, "20"}, {18, "17"}, {21, "15"}, {24, "12"}, {28, "10"}, {50, "6"}};
+int numberOfWSPRbands = sizeof(bands) / sizeof(bands[0]);
+String WSPRurlencode(const String &str);
+const char *getWSPRBandLabel(int bandValue)
+{
+    for (int i = 0; i < numberOfWSPRbands; i++)
+    {
+        if (bands[i].bandValue == bandValue)
+            return bands[i].bandLabel;
+    }
+    return "Unknown";
+}
+void getLatLonFromLocatorForWSPR(const char *locator);
+void drawTop10WSPRtable();
+void printWSPRSpotData();
+void fetchDataFromWSPRrocks();
+void drawGreatCircleWorld(float lat1, float lon1, float lat2, float lon2, uint16_t color);
+void drawGreatCircleEurope(float lat1, float lon1, float lat2, float lon2, uint16_t color);
+void drawEURmapWithSpots();
+void drawWorldMapWithSpots();
+
+//---------------------------------------------------------------------------------------------
+
+// Function to connect to Wi-Fi
+void connectToWifi()
+{
+    int attemptCount = 0;
+    bool connected = false;
+
+    Serial.println("Starting Wi-Fi connection...");
+
+    // Try connecting to the main Wi-Fi network
+    while (attemptCount < 5 && !connected)
+    {
+        attemptCount++;
+        Serial.print("Attempting to connect to Wi-Fi (Attempt ");
+        Serial.print(attemptCount);
+        Serial.println(")...");
+
+        WiFi.begin("MESH", "Nestle2010Nestle");
+
+        // Wait for connection
+        int waitTime = 0;
+        while (WiFi.status() != WL_CONNECTED && waitTime < 30)
+        {
+            delay(1000);
+            Serial.print(".");
+            waitTime++;
+        }
+
+        if (WiFi.status() == WL_CONNECTED)
+        {
+            Serial.println("\nConnected to the main Wi-Fi network!");
+            connected = true;
+        }
+        else
+        {
+            Serial.println("\nFailed to connect to the main Wi-Fi. Trying alternate Wi-Fi...");
+        }
+    }
+
+    // If connection to the main Wi-Fi failed, try alternate Wi-Fi
+    if (!connected)
+    {
+        attemptCount = 0;
+        while (attemptCount < 5 && !connected)
+        {
+            attemptCount++;
+            Serial.print("Attempting to connect to Alternate Wi-Fi (Attempt ");
+            Serial.print(attemptCount);
+            Serial.println(")...");
+
+            WiFi.begin("NO WIFI FOR YOU!!!", "Nestle2010Nestle");
+
+            // Wait for connection
+            int waitTime = 0;
+            while (WiFi.status() != WL_CONNECTED && waitTime < 30)
+            {
+                delay(1000);
+                Serial.print(".");
+                waitTime++;
+            }
+
+            if (WiFi.status() == WL_CONNECTED)
+            {
+                Serial.println("\nConnected to the alternate Wi-Fi network!");
+                connected = true;
+            }
+            else
+            {
+                Serial.println("\nFailed to connect to the alternate Wi-Fi. Trying again...");
+            }
+        }
+    }
+
+    // If both Wi-Fi connections fail, reboot the ESP32
+    if (!connected)
+    {
+        Serial.println("\nBoth Wi-Fi connections failed. Rebooting...");
+        ESP.restart();
+    }
+
+    // Successfully connected, set the hostname for mDNS (local network resolution)
+    if (connected)
+    {
+        Serial.print("Setting hostname: ");
+        Serial.println("kiki");
+
+        // Once connected to Wi-Fi, set up mDNS
+        if (!MDNS.begin("kiki"))
+        {
+            Serial.println("Error setting up MDNS responder!");
+        }
+        else
+        {
+            Serial.println("MDNS responder started.");
+            // Print the local IP address of the ESP32 (to verify it's connected)
+            Serial.print("Device IP Address: ");
+            Serial.println(WiFi.localIP());
+
+            // Optional: Print the mDNS hostname
+            Serial.print("You can now access your device using '");
+            Serial.print("kiki");
+            Serial.println(".local' in your network.");
+        }
+
+        // Print the assigned IP address
+        Serial.print("Or via device IP Address: http://");
+        Serial.println(WiFi.localIP()); // Print the local IP address of the ESP32
+        Serial.println();
+    }
+}
+
+
+
+
+
+
+
+// bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+// Function block to display png images stored in flash
+fs::File pngFile; // Global File handle (required for PNGdec callbacks)
+void *fileOpen(const char *filename, int32_t *size)
+{
+    String fullPath = "/" + String(filename);
+    pngFile = SPIFFS.open(fullPath, "r");
+    if (!pngFile)
+        return nullptr;
+    *size = pngFile.size();
+    return (void *)&pngFile;
+}
+
+void fileClose(void *handle)
+{
+    ((fs::File *)handle)->close();
+}
+
+int32_t fileRead(PNGFILE *handle, uint8_t *buffer, int32_t length)
+{
+    return ((fs::File *)handle->fHandle)->read(buffer, length);
+}
+
+int32_t fileSeek(PNGFILE *handle, int32_t position)
+{
+    return ((fs::File *)handle->fHandle)->seek(position);
+}
+
+void displayPNGfromSPIFFS(const char *filename, int duration_ms)
+{
+    if (!SPIFFS.begin(true))
+    {
+        Serial.println("Failed to mount SPIFFS!");
+        return;
+    }
+
+    int16_t rc = png.open(filename, fileOpen, fileClose, fileRead, fileSeek, [](PNGDRAW *pDraw)
+                          {
+        uint16_t lineBuffer[480];  // Adjust to your screen width if needed
+        png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xFFFFFFFF);
+        tft.pushImage(0, pDraw->y, pDraw->iWidth, 1, lineBuffer); });
+
+    if (rc == PNG_SUCCESS)
+    {
+        Serial.printf("Displaying PNG: %s\n", filename);
+        tft.startWrite();
+        png.decode(nullptr, 0);
+        tft.endWrite();
+    }
+    else
+    {
+        Serial.println("PNG decode failed.");
+    }
+
+    delay(duration_ms);
+}
+
+
+
+void getLatLonFromLocatorForWSPR(const char *locator)
+{
+    if (strlen(locator) < 4)
+    {
+        Serial.println("⚠️ Locator too short!");
+        return;
+    }
+
+    // Normalize to exactly 6 characters (pad with 'M' if needed)
+    char grid[7] = "MM00mm"; // default padding
+    for (int i = 0; i < 6 && locator[i]; ++i)
+    {
+        grid[i] = locator[i];
+    }
+    grid[6] = '\0'; // null-terminate
+
+    // Convert Maidenhead to lat/lon (center of grid square)
+    homeLongitude = (grid[0] - 'A') * 20 - 180;
+    homeLatitude = (grid[1] - 'A') * 10 - 90;
+    homeLongitude += (grid[2] - '0') * 2;
+    homeLatitude += (grid[3] - '0') * 1;
+    homeLongitude += ((grid[4] - 'a') + 0.5f) * 5.0f / 60.0f;
+    homeLatitude += ((grid[5] - 'a') + 0.5f) * 2.5f / 60.0f;
+
+    Serial.printf("📍 Locator %s → Lat: %.6f, Lon: %.6f\n", grid, homeLatitude, homeLongitude);
+}
+
+void drawTop10WSPRtable()
+{
+    tft.fillScreen(TFT_BLACK);               // 🧽 Clear screen
+    tft.setFreeFont(&FreeMonoBold9pt7b);     // 🖋️ Set readable font
+    tft.setTextColor(TFT_YELLOW, TFT_BLACK); // 🟡 Header color
+
+    tft.setCursor(1, 15);
+    tft.print("Id Time  Call     Band km"); // 📋 Header row
+    tft.setFreeFont(&FreeMono9pt7b);        // 🖋️ Set readable font
+
+    tft.setTextColor(TFT_WHITE, TFT_BLACK); // ⚪ Row color
+
+    // 🧾 Show top 5 entries (or fewer if less data)
+    for (int i = 0; i < 10; ++i)
+    {
+        if (i >= totalWSPRentries)
+            break;
+
+        int y = (i + 2) * 20 - 5;
+        tft.setCursor(1, y);
+
+        // 🖨️ Print one line of spot data
+        tft.printf("%2d %5s %-9s %2s %6s",
+                   i + 1,
+                   WSPRspots[i].time.c_str(),
+                   WSPRspots[i].callsign.c_str(),
+                   WSPRspots[i].band.c_str(),
+                   WSPRspots[i].distance.c_str());
+    }
+}
+
+String WSPRurlencode(const String &str)
+{
+    String encodedStr = "";
+    char buffer[4];
+    for (unsigned int i = 0; i < str.length(); i++)
+    {
+        char c = str.charAt(i);
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~')
+        {
+            encodedStr += c;
+        }
+        else
+        {
+            snprintf(buffer, sizeof(buffer), "%%%02X", c);
+            encodedStr += buffer;
+        }
+    }
+    return encodedStr;
+}
+
+void printWSPRSpotData()
+{
+    // Print table headers
+    Serial.println("Time   | Callsign    | Band    | Distance (km) | Latitude  | Longitude");
+    Serial.println("---------------------------------------------------------------");
+
+    // Loop through the WSPRspots array and print each spot in a formatted way
+    for (int i = 0; i < totalWSPRentries; i++)
+    {
+        String timeStr = WSPRspots[i].time;
+
+        // Ensure the time is exactly 5 characters long (HH:MM format)
+        if (timeStr.length() == 4)
+        {
+            timeStr = "0" + timeStr; // Add leading zero for single-digit hours
+        }
+
+        String callsign = WSPRspots[i].callsign;
+        String band = WSPRspots[i].band;
+        String distance = WSPRspots[i].distance;
+        String lat = String(WSPRspots[i].lat, 6); // Print latitude with 6 decimals
+        String lon = String(WSPRspots[i].lon, 6); // Print longitude with 6 decimals
+
+        // Print formatted data with fixed width for each column
+        Serial.print(timeStr); // Time
+        Serial.print(" | ");
+        Serial.print(callsign); // Callsign
+        Serial.print(" | ");
+        Serial.print(band); // Band
+        Serial.print(" | ");
+        Serial.print(distance); // Distance
+        Serial.print("   | ");
+        Serial.print(lat); // Latitude
+        Serial.print(" | ");
+        Serial.println(lon); // Longitude
+    }
+}
+
+void fetchDataFromWSPRrocks()
+{
+    String uncodedQuery = String("WITH RankedRecords AS (\n") +
+                          String("  SELECT\n") +
+                          String("    band,\n") +
+                          String("    rx_sign,\n") +
+                          String("    time,\n") +
+                          String("    rx_lat,\n") +
+                          String("    rx_lon,\n") +
+                          String("    distance,\n") +
+                          String("    ROW_NUMBER() OVER (PARTITION BY rx_sign ORDER BY time DESC) AS rn\n") +
+                          String("  FROM wspr.rx\n") +
+                          String("  WHERE time > subtractHours(now(), ") + hoursToSubtractInWSPRquery + String(")\n") +
+                          String("    AND tx_sign = '") + String(call) + String("'\n") +
+                          String(")\n") +
+                          String("SELECT\n") +
+                          String("  band,\n") +
+                          String("  rx_sign,\n") +
+                          String("  time,\n") +
+                          String("  rx_lat,\n") +
+                          String("  rx_lon,\n") +
+                          String("  distance\n") +
+                          String("FROM RankedRecords\n") +
+                          String("WHERE rn = 1\n") +
+                          String("ORDER BY distance DESC\n") +
+                          String("LIMIT 50;");
+    String encodedQuery = WSPRurlencode(uncodedQuery);
+
+    String fullURL = "https://db1.wspr.live:443/?query=" + encodedQuery;
+
+    Serial.println("🔗 Full WSPR query URL:");
+    Serial.println(fullURL); // Print full URL
+
+    HTTPClient http;
+    http.begin(fullURL);
+    int httpCode = http.GET();
+
+    if (httpCode > 0)
+    {
+        String payload = http.getString();
+
+        int lineStart = 0;
+        totalWSPRentries = 0;
+        while (lineStart < payload.length() && totalWSPRentries < maxWSPRentries)
+        {
+            int lineEnd = payload.indexOf('\n', lineStart);
+            if (lineEnd == -1)
+                lineEnd = payload.length();
+
+            String line = payload.substring(lineStart, lineEnd);
+            lineStart = lineEnd + 1;
+            if (line.length() == 0)
+                continue;
+
+            String fields[6];
+            int fieldIndex = 0, lastPos = 0;
+            while (fieldIndex < 6)
+            {
+                int tabPos = line.indexOf('\t', lastPos);
+                if (tabPos == -1)
+                    tabPos = line.length();
+                fields[fieldIndex] = line.substring(lastPos, tabPos);
+                lastPos = tabPos + 1;
+                fieldIndex++;
+            }
+
+            String timestamp = fields[2];
+            int hour = timestamp.substring(11, 13).toInt() + timeZoneOffsetInHoursForWSPRtable;
+            if (hour >= 24)
+                hour -= 24;
+            if (hour < 0)
+                hour += 24;
+            String timeStr = String(hour) + ":" + timestamp.substring(14, 16);
+
+            int bandNumeric = fields[0].toInt();
+            const char *bandLabel = getWSPRBandLabel(bandNumeric);
+
+            String callsign = fields[1];
+            if (callsign.length() > 9)
+            {
+                callsign = callsign.substring(0, 8) + "."; // Truncate to 8 chars and add dot
+            }
+            else
+            {
+                while (callsign.length() < 9)
+                    callsign += " "; // Pad to fixed width
+            }
+
+            WSPRspots[totalWSPRentries].time = timeStr;
+            WSPRspots[totalWSPRentries].callsign = callsign;
+            WSPRspots[totalWSPRentries].band = String(bandLabel);
+            WSPRspots[totalWSPRentries].distance = fields[5].substring(0, fields[5].indexOf('.')); // Remove decimals and 'km'
+            WSPRspots[totalWSPRentries].lat = fields[3].toFloat();
+            WSPRspots[totalWSPRentries].lon = fields[4].toFloat();
+
+            totalWSPRentries++;
+        }
+    }
+    http.end();
+    printWSPRSpotData();
+}
+
+void drawGreatCircleWorld(float lat1, float lon1, float lat2, float lon2, uint16_t color = TFT_YELLOW)
+{
+    const int segments = 200; // 🔁 More segments = smoother arc
+
+    int screenWidth = tft.width();   // Get current screen width
+    int screenHeight = tft.height(); // Get current screen height
+
+    // 🔄 Convert input coordinates from degrees to radians
+    // 📍 Convert starting latitude and longitude to radians (home position)
+    lat1 = radians(lat1);
+    lon1 = radians(lon1);
+
+    // 🎯 Convert destination latitude and longitude to radians (spot position)
+    lat2 = radians(lat2);
+    lon2 = radians(lon2);
+
+    // 🔄 Loop through each segment to interpolate along the great circle
+    for (int i = 0; i < segments; i++)
+    {
+        // 🧮 Fractional progress along the arc (from 0.0 to 1.0)
+        float f1 = (float)i / segments;
+        float f2 = (float)(i + 1) / segments;
+
+        // 📏 Compute angle between the two points (great circle distance)
+        float angle = acos(sin(lat1) * sin(lat2) + cos(lat1) * cos(lat2) * cos(lon2 - lon1));
+
+        // 🧭 Spherical linear interpolation (slerp) — point at fraction f1
+        float A = sin((1 - f1) * angle) / sin(angle);
+        float B = sin(f1 * angle) / sin(angle);
+
+        // 🔄 Convert from spherical to Cartesian coordinates (unit sphere)
+        float x = A * cos(lat1) * cos(lon1) + B * cos(lat2) * cos(lon2);
+        float y = A * cos(lat1) * sin(lon1) + B * cos(lat2) * sin(lon2);
+        float z = A * sin(lat1) + B * sin(lat2);
+
+        // 📍 Convert back to latitude and longitude (radians)
+        float lat = atan2(z, sqrt(x * x + y * y));
+        float lon = atan2(y, x);
+
+        // 🖼️ Map lat/lon to screen coordinates (equirectangular projection)
+        int px1 = map(degrees(lon) + 180, 0, 360, 0, screenWidth);
+        int py1 = map(90 - degrees(lat), 0, 180, 0, screenHeight);
+
+        // 🔁 Repeat interpolation for the next point (f2)
+        A = sin((1 - f2) * angle) / sin(angle);
+        B = sin(f2 * angle) / sin(angle);
+
+        x = A * cos(lat1) * cos(lon1) + B * cos(lat2) * cos(lon2);
+        y = A * cos(lat1) * sin(lon1) + B * cos(lat2) * sin(lon2);
+        z = A * sin(lat1) + B * sin(lat2);
+
+        lat = atan2(z, sqrt(x * x + y * y));
+        lon = atan2(y, x);
+
+        int px2 = map(degrees(lon) + 180, 0, 360, 0, screenWidth);
+        int py2 = map(90 - degrees(lat), 0, 180, 0, screenHeight);
+
+        // 🖊️ Draw the segment between the two interpolated points
+        tft.drawLine(px1, py1, px2, py2, color);
+    }
+}
+
+void drawGreatCircleEurope(float lat1, float lon1, float lat2, float lon2, uint16_t color = TFT_YELLOW)
+{
+    const int segments = 200; // 🔁 More segments = smoother arc
+
+    float left_lon = -12.71;
+    float right_lon = 52.8;
+    float bottom_lat = 34.8;
+    float top_lat = 71.7;
+
+    float lon_range = right_lon - left_lon;
+    float lat_range = top_lat - bottom_lat;
+
+    float screenWidth = tft.width();
+    float screenHeight = tft.height();
+
+    lat1 = radians(lat1);
+    lon1 = radians(lon1);
+    lat2 = radians(lat2);
+    lon2 = radians(lon2);
+
+    float angle = acos(sin(lat1) * sin(lat2) + cos(lat1) * cos(lat2) * cos(lon2 - lon1));
+
+    for (int i = 0; i < segments; i++)
+    {
+        float f1 = (float)i / segments;
+        float f2 = (float)(i + 1) / segments;
+
+        float A = sin((1 - f1) * angle) / sin(angle);
+        float B = sin(f1 * angle) / sin(angle);
+
+        float x = A * cos(lat1) * cos(lon1) + B * cos(lat2) * cos(lon2);
+        float y = A * cos(lat1) * sin(lon1) + B * cos(lat2) * sin(lon2);
+        float z = A * sin(lat1) + B * sin(lat2);
+
+        float lat = atan2(z, sqrt(x * x + y * y));
+        float lon = atan2(y, x);
+
+        float px1 = ((degrees(lon) - left_lon) / lon_range) * screenWidth;
+        float py1 = ((top_lat - degrees(lat)) / lat_range) * screenHeight;
+
+        A = sin((1 - f2) * angle) / sin(angle);
+        B = sin(f2 * angle) / sin(angle);
+
+        x = A * cos(lat1) * cos(lon1) + B * cos(lat2) * cos(lon2);
+        y = A * cos(lat1) * sin(lon1) + B * cos(lat2) * sin(lon2);
+        z = A * sin(lat1) + B * sin(lat2);
+
+        lat = atan2(z, sqrt(x * x + y * y));
+        lon = atan2(y, x);
+
+        float px2 = ((degrees(lon) - left_lon) / lon_range) * screenWidth;
+        float py2 = ((top_lat - degrees(lat)) / lat_range) * screenHeight;
+
+        // 🖊️ Draw precise segment
+        tft.drawLine((int)px1, (int)py1, (int)px2, (int)py2, color);
+    }
+}
+
+void drawEURmapWithSpotsOLD()
+{
+    displayPNGfromSPIFFS("eur.png", 0); // Display the Europe map without delay
+
+    // Define the longitude and latitude boundaries for Europe
+    float left_lon = -12.71;
+    float right_lon = 52.8;
+    float bottom_lat = 34.8;
+    float top_lat = 71.7;
+
+    // Transform home location to the Europe map coordinates
+    int home_x = map((homeLongitude - left_lon), 0, (right_lon - left_lon), 0, tft.width());
+    int home_y = map((top_lat - homeLatitude), 0, (top_lat - bottom_lat), 0, tft.height());
+
+    // Draw the home location on the map as a reference (optional)
+    tft.fillCircle(home_x, home_y, 5, TFT_BLUE); // Blue dot for home location
+
+    // Loop through all WSPRspots and place them on the map
+    for (int i = 0; i < totalWSPRentries; ++i)
+    {
+        // Map the longitude to the x-coordinate for the Europe map
+        int x = map((WSPRspots[i].lon - left_lon), 0, (right_lon - left_lon), 0, tft.width());
+
+        // Map the latitude to the y-coordinate for the Europe map
+        int y = map((top_lat - WSPRspots[i].lat), 0, (top_lat - bottom_lat), 0, tft.height());
+
+        tft.fillCircle(x, y, 2, TFT_RED); // Small red dot for each spot
+
+        // Draw a great circle between the home location and the reception spot
+        tft.drawLine(home_x, home_y, x, y, TFT_YELLOW); // Draw a yellow line
+    }
+}
+
+void drawEURmapWithSpots()
+{
+    // 🖼️ Display Europe background PNG (cropped map)
+    displayPNGfromSPIFFS("eur.png", 0); // Instant render
+
+    // 🌍 Europe map bounds (as defined for your cropped projection)
+    float left_lon = -12.71;
+    float right_lon = 52.8;
+    float bottom_lat = 34.8;
+    float top_lat = 71.7;
+
+    // 📍 Transform home location to Europe map coordinates
+    int home_x = map((homeLongitude - left_lon), 0, (right_lon - left_lon), 0, tft.width());
+    int home_y = map((top_lat - homeLatitude), 0, (top_lat - bottom_lat), 0, tft.height());
+
+    // 🔁 Loop through all WSPR WSPRspots
+    for (int i = 0; i < totalWSPRentries; ++i)
+    {
+        float lat = WSPRspots[i].lat;
+        float lon = WSPRspots[i].lon;
+
+        // 🗺️ Map spot location to cropped Europe image coordinates
+        int x = map((lon - left_lon), 0, (right_lon - left_lon), 0, tft.width());
+        int y = map((top_lat - lat), 0, (top_lat - bottom_lat), 0, tft.height());
+
+        // 🔴 Draw spot
+        tft.fillCircle(x, y, 2, TFT_RED);
+
+        // 🟡 Draw great-circle arc from home to spot
+        drawGreatCircleEurope(homeLatitude, homeLongitude, lat, lon);
+    }
+
+    // 🔵 Draw home location (5px blue dot)
+    tft.fillCircle(home_x, home_y, 7, TFT_BLUE);
+}
+
+void drawWorldMapWithSpots()
+{
+    displayPNGfromSPIFFS("world.png", 0); // 🗺️ Display the map
+
+    // 🔁 Plot all WSPR spots
+    for (int i = 0; i < totalWSPRentries; ++i)
+    {
+        int x = map((WSPRspots[i].lon + 180), 0, 360, 0, tft.width());
+        int y = map((90 - WSPRspots[i].lat), 0, 180, 0, tft.height());
+
+
+        tft.fillCircle(x, y, 2, TFT_RED); // 🔴 Spot dot
+        drawGreatCircleWorld(homeLatitude, homeLongitude, WSPRspots[i].lat, WSPRspots[i].lon);
+    }
+    // 🔵 Draw home location (5px blue dot)
+    int homeX = map((homeLongitude + 180), 0, 360, 0, tft.width());
+    int homeY = map((90 - homeLatitude), 0, 180, 0, tft.height());
+    tft.fillCircle(homeX, homeY, 5, TFT_BLUE);
+}
+
+
+
+
+void setup()
+{
+    Serial.begin(115200);
+    delay(3000);
+    tft.begin();
+    tft.setRotation(2);
+    tft.fillScreen(TFT_BLACK); // Fill the screen with black color
+    if (!SPIFFS.begin(true))
+    {
+        Serial.println("SPIFFS Mount Failed");
+        return;
+    }
+    // SIMULATE PREFERENCES
+    strncpy(call, "HB9IIU", sizeof(call));
+    call[sizeof(call) - 1] = '\0';
+    strncpy(loc, "JN36kl", sizeof(loc));
+    loc[sizeof(loc) - 1] = '\0';
+
+    getLatLonFromLocatorForWSPR(loc);
+
+    connectToWifi();
+
+    fetchDataFromWSPRrocks();
+
+    drawEURmapWithSpots();
+
+    delay(2000);
+    drawWorldMapWithSpots();
+    delay(2000);
+
+    drawTop10WSPRtable();
+}
+
+
+void loop()
+{
+    unsigned long now = millis();
+
+    // 🔄 Fetch WSPR data every 5 minutes
+    if (now - lastWSPRfetchTime >= WSPRfetchInterval || lastWSPRfetchTime == 0)
+    {
+        Serial.println("🌐 Fetching new WSPR data...");
+        fetchDataFromWSPRrocks();
+        lastWSPRfetchTime = now;
+        WSPRscreenCycleIndex = 0; // Restart screen cycle
+        lastWSPRScreenChange = now;
+    }
+
+    // 🔁 Cycle through 3 displays every 4 seconds
+    if (now - lastWSPRScreenChange >= 4000)
+    {
+        switch (WSPRscreenCycleIndex)
+        {
+            case 0:
+                drawEURmapWithSpots();         // 🗺️ Europe view
+                break;
+            case 1:
+                drawWorldMapWithSpots();       // 🌍 World view
+                break;
+            case 2:
+                drawTop10WSPRtable();          // 📋 Table view
+                break;
+        }
+
+        WSPRscreenCycleIndex = (WSPRscreenCycleIndex + 1) % 3; // ➕ Loop 0 → 1 → 2 → 0 ...
+        lastWSPRScreenChange = now;
+    }
+}

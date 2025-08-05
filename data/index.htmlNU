@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MLA ToolBox</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            padding-top: 70px;
+            background-color: #000;
+        }
+
+        main.container {
+            flex: 1;
+        }
+
+
+
+        .card {
+            background-color: #1a1a1a;
+            border: none;
+            color: #fff;
+        }
+
+        .btn-custom {
+            background-color: #FFC901;
+            border: none;
+        }
+
+        .btn-custom:hover {
+            background-color: #1ebb3e;
+        }
+
+        .logo-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        #WSPRclock canvas {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+<!-- Navigation -->
+<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+    <div class="container-fluid justify-content-center">
+        <a class="navbar-brand mx-auto" href="#" style="font-size: 34px;">HB9IIU Magnetic Loop Antenna ToolBox</a>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<main class="container">
+    <!-- Row 1: Logo -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4" data-pg-collapsed>
+            <div class="card p-4 h-100">
+                <h3>📊 Sweep Analyze</h3>
+                <p>Analyze live sweeps from your magnetic loop antenna to precisely identify resonance frequency and antenna behavior. Perfect for fine-tuning and diagnostics.</p>
+                <a href="analyze.html" class="btn btn-custom mt-auto">🔍 Go to Analyze</a>
+            </div>
+        </div>
+        <div class="col-md-4 d-flex align-items-center justify-content-center" data-pg-collapsed>
+            <img src="splash.png" alt="Logo" class="logo-img">
+        </div>
+        <div class="col-md-4">
+            <div class="card p-4 h-100">
+                <h3>🌐 WSPR Reporter</h3>
+                <p>Test your Magnetic Loop Antenna with WSPR. Monitor real-world propagation, signal reports, and station reach from around the globe. Ideal for optimization and performance checks.</p>
+                <a href="wspr.html" class="btn btn-custom mt-auto">🌐 Go to WSPR</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: Sweep / Clock / WSPR -->
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card p-4 h-100">
+                <h3>🛠️ Calibrate SI535</h3>
+                <p>Calibrating the SI5351 clock generator ensures precise frequency output. Adjust reference offset to improve signal generation accuracy and match real-world measurements.</p>
+                <a href="calibrate.html" class="btn btn-custom mt-auto">🔧 Go to Calibrate</a>
+            </div>
+        </div>
+        <div class="col-md-4 d-flex align-items-center justify-content-center">
+            <div id="WSPRclock"></div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-4 h-100">
+                <h3>🌐 GitHub</h3>
+                <p>Check out my GitHub repository for the latest updates, open-source code, and exciting MLA projects.</p>
+                <a href="https://github.com/HB9IIU" class="btn btn-custom mt-auto">📂 Visit GitHub</a>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Footer -->
+<footer class="text-center text-light py-4 mt-5 bg-dark">
+    <small>&copy; 2025 HB9IIU – Magnetic Loop Antenna Toolbox</small>
+</footer>
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- thooClock Plugin -->
+<script>
+    (function ($) {
+        $.fn.thooClock = function (options) {
+            this.each(function () {
+                const el = this;
+                const defaults = {
+                    size: 240,
+                    dialColor: '#fff',
+                    dialBackgroundColor: 'transparent',
+                    secondHandColor: '#ff0202',
+                    minuteHandColor: '#fff',
+                    hourHandColor: '#fff',
+                    timeCorrection: { operator: '+', hours: 0, minutes: 0 },
+                    showNumerals: true,
+                    numerals: Array.from({ length: 12 }, (_, i) => ({ [i + 1]: i + 1 })),
+                    sweepingMinutes: true,
+                    sweepingSeconds: true,
+                    numeralFont: 'arial',
+                    brandFont: 'arial',
+                    brandText: 'MLA Toolbox',
+                    brandText2: 'By HB9IIU',
+                    brandTextSizeFactor: 15,
+                    brandTextYOffset: 8,
+                    brandText2SizeFactor: 24,
+                    brandText2YOffset: 5.5
+                };
+
+                const settings = $.extend({}, defaults, options);
+                Object.assign(el, settings);
+
+                const cnv = document.createElement('canvas');
+                const ctx = cnv.getContext('2d');
+                cnv.width = el.size;
+                cnv.height = el.size;
+                $(cnv).appendTo(el);
+
+                const radius = el.size / 2;
+                ctx.translate(radius, radius);
+                const toRadians = deg => (Math.PI / 180) * deg;
+
+                function drawDial() {
+                    const dialRadius = radius - el.size / 50;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, dialRadius, 0, 2 * Math.PI);
+                    ctx.fillStyle = el.dialBackgroundColor;
+                    ctx.fill();
+
+                    for (let i = 1; i <= 60; i++) {
+                        const angle = Math.PI / 30 * i;
+                        const sinA = Math.sin(angle);
+                        const cosA = Math.cos(angle);
+                        const marker = i / 5;
+
+                        ctx.beginPath();
+                        ctx.strokeStyle = el.dialColor;
+                        ctx.lineWidth = (i % 5 === 0) ? el.size / 50 : el.size / 100;
+
+                        const nx = sinA * (dialRadius - dialRadius / 4.2);
+                        const ny = cosA * -(dialRadius - dialRadius / 4.2);
+
+                        if (i % 5 === 0 && el.showNumerals) {
+                            el.numerals.forEach(numeral => {
+                                if (marker === parseInt(Object.keys(numeral)[0])) {
+                                    const text = numeral[marker];
+                                    const textSize = el.size / 13;
+                                    ctx.font = `100 ${textSize}px ${el.numeralFont}`;
+                                    const textWidth = ctx.measureText(text).width;
+                                    ctx.fillStyle = el.dialColor;
+                                    ctx.fillText(text, nx - textWidth / 2, ny);
+                                }
+                            });
+                        }
+
+                        const sx = sinA * (i % 5 === 0 ? dialRadius - dialRadius / 9 : dialRadius - dialRadius / 20);
+                        const sy = cosA * -(i % 5 === 0 ? dialRadius - dialRadius / 9 : dialRadius - dialRadius / 20);
+                        const ex = sinA * dialRadius;
+                        const ey = cosA * -dialRadius;
+                        ctx.moveTo(sx, sy);
+                        ctx.lineTo(ex, ey);
+                        ctx.stroke();
+                    }
+
+                    if (el.brandText) {
+                        const textSize = el.size / el.brandTextSizeFactor;
+                        ctx.font = `100 ${textSize}px ${el.brandFont}`;
+                        const textWidth = ctx.measureText(el.brandText).width;
+                        ctx.fillStyle = el.dialColor;
+                        ctx.fillText(el.brandText, -textWidth / 2, el.size / el.brandTextYOffset);
+                    }
+
+                    if (el.brandText2) {
+                        const textSize = el.size / el.brandText2SizeFactor;
+                        ctx.textBaseline = 'middle';
+                        ctx.font = `100 ${textSize}px ${el.brandFont}`;
+                        const textWidth = ctx.measureText(el.brandText2).width;
+                        ctx.fillStyle = el.dialColor;
+                        ctx.fillText(el.brandText2, -textWidth / 2, el.size / el.brandText2YOffset);
+                    }
+                }
+
+                function drawHand(length) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(0, -length);
+                    ctx.stroke();
+                }
+
+                function drawSecondHand(ms, sec) {
+                    const length = radius - el.size / 40;
+                    ctx.save();
+                    ctx.lineWidth = el.size / 150;
+                    ctx.strokeStyle = el.secondHandColor;
+                    ctx.rotate(toRadians(ms * 0.006 + sec * 6));
+                    drawHand(length);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, el.size / 30, 0, 2 * Math.PI);
+                    ctx.fillStyle = el.secondHandColor;
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                function drawMinuteHand(minutes) {
+                    const length = el.size / 2.2;
+                    ctx.save();
+                    ctx.lineWidth = el.size / 50;
+                    ctx.strokeStyle = el.minuteHandColor;
+                    ctx.rotate(toRadians(minutes * 6));
+                    drawHand(length);
+                    ctx.restore();
+                }
+
+                function drawHourHand(hours) {
+                    const length = el.size / 3;
+                    ctx.save();
+                    ctx.lineWidth = el.size / 25;
+                    ctx.strokeStyle = el.hourHandColor;
+                    ctx.rotate(toRadians(hours * 30));
+                    drawHand(length);
+                    ctx.restore();
+                }
+
+                function twelveHourFormat(hour) {
+                    return hour >= 12 ? hour - 12 : hour;
+                }
+
+                function startClock() {
+                    const now = new Date();
+                    const tc = el.timeCorrection;
+                    if (tc) {
+                        now.setHours(now.getHours() + (tc.operator === '+' ? tc.hours : -tc.hours));
+                        now.setMinutes(now.getMinutes() + (tc.operator === '+' ? tc.minutes : -tc.minutes));
+                    }
+
+                    const sec = now.getSeconds();
+                    const ms = el.sweepingSeconds ? now.getMilliseconds() : 0;
+                    const min = now.getMinutes() + sec / 60;
+                    const hour = twelveHourFormat(now.getHours() + min / 60);
+
+                    ctx.clearRect(-radius, -radius, el.size, el.size);
+                    drawDial();
+                    drawHourHand(hour);
+                    drawMinuteHand(min);
+                    drawSecondHand(ms, sec);
+
+                    requestAnimationFrame(startClock);
+                }
+
+                startClock();
+            });
+            return this;
+        };
+    })(jQuery);
+</script>
+
+<!-- Init Clock -->
+<script>
+    $(document).ready(function () {
+        $('#WSPRclock').thooClock({
+            size: 200
+        });
+    });
+</script>
+
+<!-- Bootstrap Bundle JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

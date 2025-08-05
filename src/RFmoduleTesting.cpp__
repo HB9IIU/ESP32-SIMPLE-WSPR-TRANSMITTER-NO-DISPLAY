@@ -1,0 +1,92 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <si5351.h>
+
+// === Configuration ===
+#define ADC_PIN 34                        // Analog input pin
+#define TX_FREQUENCY 1400000000ULL         // 14.000 MHz
+#define TX_INTERVAL_MS 2000             // TX toggle interval in milliseconds
+#define ADC_SAMPLES 8                    // Number of ADC samples to average
+
+// === Globals ===
+Si5351 si5351;
+bool txOn = false;
+unsigned long lastToggle = 0;
+
+// === Function: Read averaged ADC voltage ===
+float readAveragedVoltage(int pin, int samples = ADC_SAMPLES) {
+  long sum = 0;
+  for (int i = 0; i < samples; i++) {
+    sum += analogRead(pin);
+  }
+  float average = sum / (float)samples;
+  return (average / 4095.0) * 3.3;  // Convert to volts (assuming 3.3V reference)
+}
+void printVoltageBar(float voltage) {
+  const float minV = 1.3;
+  const float maxV = 1.7;
+  const int barWidth = 50;
+
+  // Clamp and scale voltage
+  float clamped = constrain(voltage, minV, maxV);
+  int percent = (int)(((clamped - minV) / (maxV - minV)) * 100);
+  int bars = map(percent, 0, 100, 0, barWidth);
+
+  // Print bar
+  Serial.printf("[%3d%%] ", percent);
+  for (int i = 0; i < barWidth; i++) {
+    if (i < bars)
+      Serial.print("█");  // Full block
+    else
+      Serial.print(" ");
+  }
+  Serial.println();
+}
+
+// === Setup ===
+void setup() {
+  Serial.begin(115200);
+  delay(500); // Let USB/Serial stabilize
+
+  Serial.println("\n[Si5351 TX Controller]");
+  Wire.begin();
+  analogReadResolution(12);  // 12-bit ADC for ESP32
+
+  // Initialize Si5351
+  if (si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0)) {
+    Serial.println("Si5351 initialized successfully.");
+  } else {
+    Serial.println("ERROR: Si5351 init failed!");
+    while (1); // Halt if initialization fails
+  }
+
+  // Set output frequency on CLK0
+  si5351.set_freq(TX_FREQUENCY, SI5351_CLK0);
+  si5351.output_enable(SI5351_CLK1, false); // Start with TX OFF
+  Serial.println("CLK0 set to 14.000 MHz. TX is OFF.");
+}
+
+// === Loop ===
+void loop() {
+  unsigned long now = millis();
+
+  if (now - lastToggle >= TX_INTERVAL_MS) {
+    lastToggle = now;
+    txOn = !txOn;
+
+    if (txOn) {
+      si5351.output_enable(SI5351_CLK0, true);  // TX ON
+      Serial.println("TX ON");
+    } else {
+      si5351.output_enable(SI5351_CLK0, false); // TX OFF
+      Serial.println("TX OFF");
+    }
+
+    // Read and print ADC voltage
+    float voltage = readAveragedVoltage(ADC_PIN);
+    Serial.printf("ADC Voltage on pin %d: %.3f V\n\n", ADC_PIN, voltage);
+        printVoltageBar(voltage);
+        Serial.println();
+
+  }
+}

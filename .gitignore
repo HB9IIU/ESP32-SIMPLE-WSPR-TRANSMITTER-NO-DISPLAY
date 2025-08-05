@@ -1,0 +1,67 @@
+# PlatformIO build and project metadata
+.pio/
+.pioenvs/
+.piolibdeps/
+.piomemory
+.pio.test/
+.pioide/
+.pio-lock
+
+# PlatformIO core cache
+__pycache__/
+*.pyc
+*.pyo
+
+# VSCode project settings
+.vscode/
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Thumbnails
+._*
+
+# Windows system files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Archive & backup files
+*.zip
+*.tar.gz
+*.tgz
+*.bak
+*.tmp
+*.swp
+*.swo
+*.old
+
+# Compiled object files and logs
+*.o
+*.obj
+*.elf
+*.map
+*.bin
+*.hex
+*.exe
+*.log
+
+# Arduino-related cache
+*.arduino*
+.cache/
+
+# IDE-specific files (optional: add/remove based on your tools)
+.clangd/
+.idea/
+*.code-workspace
+
+# Custom: user-ignored local config or secret files
+secrets.h
+wifi_config.h
+
+
+
+/doc/snagit.snagx
