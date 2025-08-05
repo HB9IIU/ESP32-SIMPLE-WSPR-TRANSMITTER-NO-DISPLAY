@@ -1,5 +1,7 @@
 #include <WiFi.h>
-#include <SPIFFS.h>
+//#include <SPIFFS.h>
+#include <LittleFS.h>         
+#define FILESYSTEM LittleFS   
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include "Preferences.h"
@@ -135,13 +137,16 @@ void setup()
     Serial.begin(115200);
     delay(4000);
 
-    // Initialize SPIFFS
-    if (!SPIFFS.begin(true))
+    // Initialize SPIFFS.  // LittleFS
+   // if (!SPIFFS.begin(true))
+if (!FILESYSTEM.begin(true))
+
+
     {
-        Serial.println("An error occurred while mounting SPIFFS");
+        Serial.println("An error occurred while mounting LITTLEFS");
         return;
     }
-    Serial.println("SPIFFS mounted successfully");
+    Serial.println("LITTLEFS mounted successfully");
     // Connect to Wi-Fi
     WiFi.begin(ssid, password);
     Serial.print("Connecting to Wi-Fi");
@@ -166,8 +171,6 @@ void setup()
     configure_web_server();
 }
 //---------------------------------------------------------------------------------------------
-
-
 
 void loop()
 {
@@ -445,7 +448,6 @@ void startTransmission()
     );
 }
 
-
 // ✅ Returns a randomized safe WSPR transmit frequency for a given band index
 unsigned long setRandomWSPRfrequency(byte bandIndex)
 {
@@ -665,40 +667,40 @@ void configure_web_server()
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     Serial.println("📄 Route: / -> /index.html");
-    request->send(SPIFFS, "/index.html", "text/html"); });
+    request->send(FILESYSTEM, "/index.html", "text/html"); });
 
     server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     Serial.println("📄 Route: /index.html -> /index.html");
-    request->send(SPIFFS, "/index.html", "text/html"); });
+    request->send(FILESYSTEM, "/index.html", "text/html"); });
 
     server.on("/calibrate.html", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     Serial.println("🔧 Route: /calibrate.html -> /calibrate.html");
-    request->send(SPIFFS, "/calibrate.html", "text/html"); });
+    request->send(FILESYSTEM, "/calibrate.html", "text/html"); });
 
     server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     Serial.println("🔖 Route: /favicon.ico");
-    request->send(SPIFFS, "/favicon.ico", "image/x-icon"); });
+    request->send(FILESYSTEM, "/favicon.ico", "image/x-icon"); });
 
     // Static assets
     server.on("/assets/spectrum.jpg", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     Serial.println("🖼️ Route: /assets/spectrum.jpg");
-    request->send(SPIFFS, "/assets/spectrum.jpg", "image/jpeg"); });
+    request->send(FILESYSTEM, "/assets/spectrum.jpg", "image/jpeg"); });
 
     server.on("/assets/wsprlogo.png", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     Serial.println("🖼️ Route: /assets/wsprlogo.png");
-    request->send(SPIFFS, "/assets/wsprlogo.png", "image/png"); });
+    request->send(FILESYSTEM, "/assets/wsprlogo.png", "image/png"); });
     server.on("/assets/warning.png", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     Serial.println("🖼️ Route: /assets/warning.png");
-    request->send(SPIFFS, "/assets/warning.png", "image/png"); });
+    request->send(FILESYSTEM, "/assets/warning.png", "image/png"); });
 
     server.on("/cesium.key", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/cesium.key", "text/plain"); });
+              { request->send(FILESYSTEM, "/cesium.key", "text/plain"); });
 
     // 🔧 Settings and data endpoints
     server.on("/getAllSettings", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -1044,8 +1046,6 @@ String latLonToMaidenhead(float lat, float lon)
 
     return String(maiden);
 }
-
-
 
 void transmitWSPRTask(void *parameter)
 {
