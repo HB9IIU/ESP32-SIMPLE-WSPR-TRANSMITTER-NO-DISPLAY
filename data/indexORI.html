@@ -1,0 +1,1222 @@
+<!doctype html>
+<html class="h-100" lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1" name="viewport">
+    <meta content="" name="description">
+    <title>HB9IIU WSPR Beacon</title>
+    <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+    <link crossorigin="" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet">
+    <link href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" rel="stylesheet">
+    <link href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.92.0/Widgets/widgets.css" rel="stylesheet">
+    <style>main > .container {
+        padding: 60px 15px 0;
+        margin-top: 15px;
+    }
+
+    #callsign, #locator {
+        text-transform: uppercase;
+    }
+
+    #power {
+        width: 100px;
+    }
+
+    input[type=text] {
+        text-align: center;
+    }
+
+    .reboot-button {
+        display: flex;
+        justify-content: center;
+    }
+
+    .progress {
+        height: 30px;
+    }
+
+    .progress-container {
+        display: none;
+    }
+
+    @keyframes blink-red {
+        0% {
+            background-color: red;
+        }
+        50% {
+            background-color: transparent;
+        }
+        100% {
+            background-color: red;
+        }
+    }
+
+    @keyframes blink-green {
+        0% {
+            background-color: #198853;
+        }
+        50% {
+            background-color: transparent;
+        }
+        100% {
+            background-color: #198853;
+        }
+    }
+
+    .freq-div-highlight-TX {
+        background-color: red;
+        color: #fff;
+        font-weight: 700;
+        padding: 5px 0;
+        border-radius: 6px;
+        animation: blink-red 1s infinite;
+    }
+
+    .freq-div-highlight-RX {
+        background-color: #1ebb3e;
+        color: #fff;
+        font-weight: 700;
+        padding: 5px 0;
+        border-radius: 6px;
+        animation: blink-green 3s infinite;
+    }
+
+    .highlight_RX {
+        color: #fff;
+    }
+
+    .text-end {
+        text-align: right;
+    }
+
+    .text-center {
+        text-align: center;
+    }
+
+    #overlay {
+        position: fixed;
+        display: none;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        background-color: rgba(0, 0, 0, .7);
+        z-index: 9999;
+        cursor: pointer;
+    }
+
+    #overlay-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        color: #fff;
+        font-size: 20px;
+    }
+
+    .spinner {
+        border: 16px solid #f3f3f3;
+        border-top: 16px solid #3498db;
+        border-radius: 50%;
+        width: 120px;
+        height: 120px;
+        animation: spin 2s linear infinite;
+        margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    #cesiumContainer, #map {
+        width: 100%;
+        height: 600px;
+        margin-bottom: 20px;
+    }
+
+    #loadingSpinner {
+        display: none;
+    }
+
+    .legend i {
+        width: 18px;
+        height: 18px;
+        float: left;
+        margin-right: 8px;
+        opacity: .7;
+    }
+
+    .custom-button {
+        max-width: 300px;
+        width: 100%;
+        font-size: 18px;
+    }
+
+    .modal-logo {
+        width: 160px;
+        height: 160px;
+    }
+
+    #progressLabel, #TXProgressLabel {
+        font-size: 18px; /* Adjust size as needed */
+        font-weight: bold;
+        color: white; /* Ensure visibility over the progress bar */
+    }</style>
+    <link href="https://fonts.googleapis.com/css?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+</head>
+<body class="d-flex flex-column h-100">
+<header>
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+        <div class="container-fluid"><a class="navbar-brand" href="">Web WSPR Beacon</a>
+            <button aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" class="navbar-toggler
+" data-bs-target="#navbarCollapse" data-bs-toggle="collapse" type="button">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarCollapse">
+                <ul class="navbar-nav me-auto mb-2 mb-md-0">
+                    <li class="nav-item">
+                        <a class="active nav-link" href="https://wspr.rocks/" target="_blank">wspr.rocks</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="active nav-link" href="http://websdr.org/" target="_blank">websdr.org</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="active nav-link" href="http://kiwisdr.com/.public/" target="_blank">kiwisdr.com</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="active nav-link" href="https://github.com/HB9IIU" target="_blank">gituHub</a>
+                    </li>
+                </ul>
+            </div>
+            <h6 id="version" style="color:#7f7f7f">Beta 1.0</h6>
+        </div>
+    </nav>
+</header>
+<main class="flex-shrink-0">
+    <div class="container">
+        <div class="row">
+            <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4 pe-4">
+                <div class="row g-0">
+                    <div class="col-md-12 text-end">
+                        <h4 style="text-align:left">
+                            TX Status <span class="fs-6">Band Start Frequencies</span></h4>
+                    </div>
+                </div>
+                <!-- 80 m -->
+                <div class="row align-items-center g-0">
+                    <div class="col-md-3 text-end">
+                        <p style="font-weight:700;font-size:18px;margin:0">80 m</p>
+                    </div>
+                    <div class="col-md-6 text-end" id="freq-80m">
+                        <p style="margin:0">3.570.000 Hz</p>
+                    </div>
+                    <div class="col-md-3 text-end"></div>
+                </div>
+                <!-- 40 m -->
+                <div class="row align-items-center g-0">
+                    <div class="col-md-3 text-end">
+                        <p style="font-weight:700;font-size:18px;margin:0">40 m</p>
+                    </div>
+                    <div class="col-md-6 text-end" id="freq-40m">
+                        <p style="margin:0">7.040.000 Hz</p>
+                    </div>
+                    <div class="col-md-3 text-end"></div>
+                </div>
+                <!-- 30 m -->
+                <div class="row align-items-center g-0">
+                    <div class="col-md-3 text-end">
+                        <p style="font-weight:700;font-size:18px;margin:0">30 m</p>
+                    </div>
+                    <div class="col-md-6 text-end" id="freq-30m">
+                        <p style="margin:0">10.140.100 Hz</p>
+                    </div>
+                    <div class="col-md-3 text-end"></div>
+                </div>
+                <!-- 20 m -->
+                <div class="row align-items-center g-0">
+                    <div class="col-md-3 text-end">
+                        <p style="font-weight:700;font-size:18px;margin:0">20 m</p>
+                    </div>
+                    <div class="col-md-6 text-end" id="freq-20m">
+                        <p style="margin:0">14.097.000 Hz</p>
+                    </div>
+                    <div class="col-md-3 text-end"></div>
+                </div>
+                <!-- 17 m -->
+                <div class="row align-items-center g-0">
+                    <div class="col-md-3 text-end">
+                        <p style="font-weight:700;font-size:18px;margin:0">17 m</p>
+                    </div>
+                    <div class="col-md-6 text-end" id="freq-17m">
+                        <p style="margin:0">18.106.000 Hz</p>
+                    </div>
+                    <div class="col-md-3 text-end"></div>
+                </div>
+                <!-- 15 m -->
+                <div class="row align-items-center g-0">
+                    <div class="col-md-3 text-end">
+                        <p style="font-weight:700;font-size:18px;margin:0">15 m</p>
+                    </div>
+                    <div class="col-md-6 text-end" id="freq-15m">
+                        <p style="margin:0">21.096.000 Hz</p>
+                    </div>
+                    <div class="col-md-3 text-end"></div>
+                </div>
+                <!-- 12 m -->
+                <div class="row align-items-center g-0">
+                    <div class="col-md-3 text-end">
+                        <p style="font-weight:700;font-size:18px;margin:0">12 m</p>
+                    </div>
+                    <div class="col-md-6 text-end" id="freq-12m">
+                        <p style="margin:0">24.926.000 Hz</p>
+                    </div>
+                    <div class="col-md-3 text-end"></div>
+                </div>
+                <!-- 10 m -->
+                <div class="row align-items-center g-0">
+                    <div class="col-md-3 text-end">
+                        <p style="font-weight:700;font-size:18px;margin:0">10 m</p>
+                    </div>
+                    <div class="col-md-6 text-end" id="freq-10m">
+                        <p style="margin:0">28.126.000 Hz</p>
+                    </div>
+                    <div class="col-md-3 text-end"></div>
+                </div>
+                <!-- 6 m -->
+                <div class="row align-items-center g-0">
+                    <div class="col-md-3 text-end">
+                        <p style="font-weight:700;font-size:18px;margin:0">6 m</p>
+                    </div>
+                    <div class="col-md-6 text-end" id="freq-6m">
+                        <p style="margin:0">50.293.000 Hz</p>
+                    </div>
+                    <div class="col-md-3 text-end"></div>
+                </div>
+            </div>
+            <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4" data-pg-collapsed>
+                <h4>TX Schedule</h4>
+                <div class="row align-items-center g-0 mb-1">
+                    <div class="col-md-2 d-flex justify-content-center align-items-center">
+                        <input class="form-check-input" id="schedule1" name="txInterval"
+                               onchange='sendScheduleState("schedule1")' type="radio">
+                    </div>
+                    <div class="col-md-10 text-start">
+                        <label class="form-check-label" for="schedule1" style="margin:0">TX every 2 minutes</label>
+                    </div>
+                </div>
+                <div class="row align-items-center g-0 mb-1">
+                    <div class="col-md-2 d-flex justify-content-center align-items-center">
+                        <input class="form-check-input" id="schedule2" name="txInterval"
+                               onchange='sendScheduleState("schedule2")' type="radio">
+                    </div>
+                    <div class="col-md-10 text-start">
+                        <label class="form-check-label" for="schedule2" style="margin:0">TX every 4 minutes</label>
+                    </div>
+                </div>
+                <div class="row align-items-center g-0 mb-1">
+                    <div class="col-md-2 d-flex justify-content-center align-items-center">
+                        <input class="form-check-input" id="schedule3" name="txInterval"
+                               onchange='sendScheduleState("schedule3")' type="radio">
+                    </div>
+                    <div class="col-md-10 text-start">
+                        <label class="form-check-label" for="schedule3" style="margin:0">TX every 6 minutes</label>
+                    </div>
+                </div>
+                <div class="row align-items-center g-0 mb-1">
+                    <div class="col-md-2 d-flex justify-content-center align-items-center">
+                        <input class="form-check-input" id="schedule4" name="txInterval"
+                               onchange='sendScheduleState("schedule4")' type="radio">
+                    </div>
+                    <div class="col-md-10 text-start">
+                        <label class="form-check-label" for="schedule4" style="margin:0">TX every 8 minutes</label>
+                    </div>
+                </div>
+                <div class="row align-items-center g-0 mb-2">
+                    <div class="col-md-2 d-flex justify-content-center align-items-center">
+                        <input class="form-check-input" id="schedule5" name="txInterval"
+                               onchange='sendScheduleState("schedule5")' type="radio">
+                    </div>
+                    <div class="col-md-10 text-start">
+                        <label class="form-check-label" for="schedule5" style="margin:0">TX every 10 minutes</label>
+                    </div>
+                </div>
+                <div class="row align-items-center g-0">
+                    <div class="text-center" id="WSPRclock" style="text-align:center;margin-top:10px"></div>
+                </div>
+            </div>
+            <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4" data-pg-collapsed>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>Callsign</h4>
+                        <div class="mb-3">
+                            <input class="form-control" id="callsign" maxlength="6" oninput="validateCallsign()"
+                                   style="text-align: center;">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h4>Locator</h4>
+                        <div class="mb-3">
+                            <input class="form-control" id="locator" maxlength="6" oninput="validateLocator()"
+                                   style="text-align: center;">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4 style="text-align:center">&nbsp;Power (mW)</h4>
+                        <div class="mb-3 d-flex justify-content-center">
+                            <input class="form-control custom-input" id="power" maxlength="5" oninput="validatePower()"
+                                   style="text-align: center;">
+                        </div>
+                        <p id="powerdbm" style="text-align:center;margin-top:5px;font-style:italic;font-size:12px">
+                            ..dBm</p>
+                    </div>
+                    <div class="col-md-6">
+                        <img class="img-fluid text-center" src="assets/wsprlogo.png" style="max-width:100%;height:auto">
+                    </div>
+                </div>
+                <div class="container mt-auto">
+                    <div class="row justify-content-center">
+                        <div class="col-12 col-md-auto d-flex flex-column align-items-center">
+                            <button class="btn btn-success custom-button mb-2" onclick="rebootESP32()" type="button">
+                                Reboot
+                            </button>
+                            <button class="btn btn-danger custom-button"
+                                    onclick="window.location.href='calibrate.html';" type="button">Calibrate VFO
+                            </button>
+                            <table class="table table-borderless table-sm text-center mt-4" style="margin-bottom:0">
+                                <tbody>
+                                <tr data-pg-collapsed style="line-height:1.5">
+                                    <td style="padding:0"><h3 id="UTCDigitalClock"
+                                                              style="font-family:'Share Tech Mono',monospace;font-size:27px;font-weight:700;text-align:right;margin:0;padding-right:15px">
+                                        00:00:00 </h3></td>
+                                    <th style="font-size:22px;text-align:left;padding:0;margin:0;vertical-align:middle">
+                                        UTC
+                                    </th>
+                                </tr>
+                                <tr data-pg-collapsed style="line-height:1.5">
+                                    <td style="padding:0"><h3 id="LocalDigitalClock"
+                                                              style="font-family:'Share Tech Mono',monospace;font-size:27px;font-weight:700;text-align:right;margin:0;line-height:1.5;padding-right:15px">
+                                        00:00:00 </h3></td>
+                                    <th style="font-size:22px;text-align:left;padding:0;margin:0;vertical-align:middle;line-height:1.5">
+                                        Local
+                                    </th>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row" data-pg-collapsed>
+            <h4 id="progressText">Waiting for next transmission slot</h4>
+        </div>
+        <div class="row progress-container" data-pg-collapsed id="greenProgressContainer">
+            <div class="g-0 progress mx-auto">
+                <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0"
+                     class="progress-bar bg-success progress-bar-striped" id="progressBar" role="progressbar"
+                     style="width:0%">
+                    <span id="progressLabel"></span>
+                </div>
+            </div>
+        </div>
+        <div class="row progress-container" data-pg-collapsed id="redProgressContainer">
+            <div class="g-0 progress mx-auto">
+                <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0"
+                     class="progress-bar bg-danger progress-bar-striped" id="TXprogressBAR" role="progressbar"
+                     style="width:0%">
+                    <span id="TXProgressLabel"></span>
+                </div>
+            </div>
+        </div>
+        <div class="row" data-pg-collapsed>
+            <div class="container d-flex justify-content-center">
+                <div id="map" style="margin-top:15px"></div>
+            </div>
+        </div>
+        <div class="row" data-pg-collapsed>
+            <div class="container d-flex justify-content-center">
+                <div id="cesiumContainer"></div>
+            </div>
+        </div>
+        <div id="alertPlaceholder"></div>
+        <div class="row" data-pg-collapsed>
+            <div aria-label="Basic example" class="btn-group" role="group">
+                <button class="btn btn-secondary" onclick="filterByBand(7)" type="button">40 m</button>
+                <button class="btn btn-secondary" onclick="filterByBand(10)" type="button">30 m</button>
+                <button class="btn btn-secondary" onclick="filterByBand(14)" type="button">20 m</button>
+                <button class="btn btn-secondary" onclick="filterByBand(21)" type="button">15 m</button>
+                <button class="btn btn-secondary" onclick="filterByBand(24)" type="button">12 m</button>
+                <button class="btn btn-secondary" onclick="filterByBand(28)" type="button">10 m</button>
+            </div>
+            <div class="container mt-5">
+                <div id="results"></div>
+            </div>
+        </div>
+        <div class="d-flex justify-content-center mt-5" data-pg-collapsed id="loadingSpinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+</main>
+<footer class="footer mt-auto py-3 bg-light" data-pg-collapsed>
+    <div class="container"><span class="text-muted">HB9IIU May 2025</span>
+    </div>
+</footer>
+<div id="overlay">
+    <div id="overlay-content">
+        <div class="spinner"></div>
+        <div>Please wait, rebooting...</div>
+    </div>
+</div>
+<div aria-hidden="true" aria-labelledby="factoryResetModalLabel" class="modal fade" id="factoryResetModal"
+     tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header d-flex flex-column align-items-center">
+                <h5 class="modal-title" id="factoryResetModalLabel">Factory Reset Confirmation</h5>
+                <img alt="Logo" class="modal-logo mt-2" src="assets/warning.png">
+                <button aria-label="Close" class="btn-close" data-bs-dismiss="modal" type="button"></button>
+            </div>
+            <div class="modal-body">
+                By clicking Yes, the ESP32 will be reset to factory default settings, meaning that all configurations
+                will be lost. A reconfiguration via AP (network: HB9IIU-WSPR-CONFIG, IP: 192.168.4.1) will be required.
+                Do you want to proceed?
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancel</button>
+                <button class="btn btn-primary" id="confirmFactoryReset" type="button">Yes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="blockerOverlay" style="
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background-color: rgba(0, 0, 0, 0.75);
+  z-index: 10000;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  color: white;
+  font-size: 1.5em;
+  text-align: center;
+">
+    <div id="blockerMessage">Mode not supported.</div>
+</div>
+
+
+<script crossorigin="anonymous"
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script crossorigin="" src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.geodesic"></script>
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.114.0/Cesium.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>let map, viewer, txSign = "NOCALL", HomeTXLat, HomeTXLon
+
+function initializeCesium(e) {
+    Cesium.Ion.defaultAccessToken = e, viewer = new Cesium.Viewer("cesiumContainer", {
+        imageryProvider: Cesium.createWorldImagery(),
+        baseLayerPicker: !1,
+        timeline: !1,
+        animation: !1,
+        geocoder: !1
+    }), viewer.scene.camera.setView({destination: Cesium.Cartesian3.fromDegrees(0, 0, 2e7)})
+}
+
+function validatePower() {
+    var e = document.getElementById("power").value.replace(/[^0-9]/g, "");
+    document.getElementById("power").value = e, sendPower(), updatePowerDBM(e)
+}
+
+function updatePowerDBM(e) {
+    if ("" === e) document.getElementById("powerdbm").value = ""; else {
+        var t = 10 * Math.log10(e);
+        document.getElementById("powerdbm").textContent = t.toFixed(1) + " dBm"
+    }
+}
+
+function sendPower() {
+    var e = document.getElementById("power").value, t = new XMLHttpRequest;
+    t.open("GET", "/updatePower?power=" + e, !0), t.send()
+}
+
+function highlightBandSelection(frequencyHz, mode) {
+   // console.log(`📡 highlightBandSelection called with frequency: ${frequencyHz} Hz, mode: ${mode}`);
+
+    // Exact frequency-to-band ID mapping in Hz (matches WSPRbandStart[])
+    const bandMap = {
+        3570000: "freq-80m",
+        7040000: "freq-40m",
+        10140100: "freq-30m",
+        14097000: "freq-20m",
+        18106000: "freq-17m",
+        21096000: "freq-15m",
+        24926000: "freq-12m",
+        28126000: "freq-10m"
+    };
+
+
+    const parsedFreq = parseInt(frequencyHz); // Ensure it's an integer in Hz
+    //console.log(`🔍 Parsed frequency for lookup: ${parsedFreq} Hz`);
+
+    // Try exact match
+    const matchedKey = Object.keys(bandMap).find(key => parseInt(key) === parsedFreq);
+    const elementId = bandMap[matchedKey];
+
+    //console.log(`🔗 Matched key: ${matchedKey || "none"}, element ID: ${elementId || "none"}`);
+
+    // Remove highlights from all bands
+    Object.values(bandMap).forEach(id => {
+        const el = document.getElementById(id);
+        const wrapper = el?.parentElement;
+
+        if (el) {
+            el.classList.remove("highlight_RX", "highlight_TX");
+            //console.log(`❌ Removed highlight from: ${id}`);
+        }
+        if (wrapper) {
+            wrapper.classList.remove("freq-div-highlight-RX", "freq-div-highlight-TX");
+        }
+    });
+
+    // Apply highlight if match found
+    if (elementId) {
+        const el = document.getElementById(elementId);
+        const wrapper = el?.parentElement;
+
+        if (el) {
+            if (mode === "waiting") {
+                el.classList.add("highlight_RX");
+                // console.log(`✅ Applied RX highlight to: ${elementId}`);
+            } else if (mode === "transmitting") {
+                el.classList.add("highlight_TX");
+                // console.log(`✅ Applied TX highlight to: ${elementId}`);
+            }
+        }
+
+        if (wrapper) {
+            if (mode === "waiting") {
+                wrapper.classList.add("freq-div-highlight-RX");
+            } else if (mode === "transmitting") {
+                wrapper.classList.add("freq-div-highlight-TX");
+            }
+        }
+    } else {
+        console.warn(`⚠️ No matching band found for frequency: ${parsedFreq} Hz`);
+    }
+}
+
+
+function formatTimeForProgressBarLabel(seconds) {
+    if (seconds >= 60) {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}m ${secs}s`;
+    }
+    return `${seconds}s`;
+}
+
+function updateProgressBar() {
+    fetch("/getTimes")
+        .then(response => response.json())
+        .then(data => {
+            const t = data.currentRemainingSeconds;
+            const n = data.txRunningTime;
+            const o = data.TX_referenceFrequ;
+            //console.log(data.TX_referenceFrequ);
+            const intervalBetweenTx = data.intervalBetweenTx;
+
+            const progressBar = document.getElementById("progressBar");
+            const progressLabel = document.getElementById("progressLabel");
+            const greenProgressContainer = document.getElementById("greenProgressContainer");
+            const progressText = document.getElementById("progressText");
+
+            const txProgressBar = document.getElementById("TXprogressBAR");
+            const txProgressLabel = document.getElementById("TXProgressLabel");
+            const redProgressContainer = document.getElementById("redProgressContainer");
+
+            if (t > 0) {
+                const percentage = Math.floor((t / intervalBetweenTx) * 100);
+                greenProgressContainer.style.display = "block";
+                //console.log(t, intervalBetweenTx,percentage)
+                progressBar.style.width = `${percentage}%`;
+                progressBar.setAttribute("aria-valuenow", t);
+                progressLabel.textContent = formatTimeForProgressBarLabel(t);
+                progressText.textContent = "Waiting for next transmission slot";
+                highlightBandSelection(o, "waiting");
+
+
+                redProgressContainer.style.display = "none";
+            } else if (n > 0) {
+
+                const percentage = Math.floor((n / 111) * 100);// closest practical value to 110.6
+                redProgressContainer.style.display = "block";
+                txProgressBar.style.width = `${percentage}%`;
+                txProgressBar.setAttribute("aria-valuenow", n);
+                txProgressLabel.textContent = formatTimeForProgressBarLabel(n);
+                progressText.textContent = "Transmitting";
+                 highlightBandSelection(o, "transmitting");
+
+
+                greenProgressContainer.style.display = "none";
+            } else {
+                greenProgressContainer.style.display = "none";
+                redProgressContainer.style.display = "none";
+            }
+        })
+        .catch(error => console.error("Error fetching times:", error));
+}
+
+function validateCallsign() {
+    for (var e = document.getElementById("callsign").value.toUpperCase(), t = "", n = 0; n < e.length; n++) {
+        var o = e.charAt(n);
+        0 === n ? (o.match(/[A-Z0-9]/) || "" === o) && (t += o) : 1 === n ? o.match(/[A-Z0-9]/) && (t += o) : 2 === n ? o.match(/[0-9]/) && (t += o) : n >= 3 && n <= 5 && (o.match(/[A-Z]/) || "" === o) && (t += o)
+    }
+    document.getElementById("callsign").value = t, txSign = t, console.log("TX Sign updated to:", txSign), sendCallsign()
+}
+
+function sendCallsign() {
+    var e = document.getElementById("callsign").value, t = new XMLHttpRequest;
+    t.open("GET", "/updateCallsign?callsign=" + e, !0), t.send()
+}
+
+function sendScheduleState(e) {
+    var t = new XMLHttpRequest;
+    t.open("GET", "/updateScheduleState?id=" + e, !0), t.send()
+}
+
+function validateLocator() {
+    for (var e = document.getElementById("locator").value.toUpperCase(), t = "", n = 0; n < e.length; n++) {
+        var o = e.charAt(n);
+        0 === n || 1 === n ? o.match(/[A-R]/) && (t += o) : 2 === n || 3 === n ? o.match(/[0-9]/) && (t += o) : 4 !== n && 5 !== n || o.match(/[A-X]/) && (t += o.toLowerCase())
+    }
+    document.getElementById("locator").value = t, sendLocator()
+}
+
+function sendLocator() {
+    var e = document.getElementById("locator").value, t = new XMLHttpRequest;
+    t.open("GET", "/updateLocator?locator=" + e, !0), t.send()
+}
+
+function pollModeAndReload() {
+    setInterval(() => {
+        console.log("Checking again if in WSPR mode....")
+        fetch("/getModeOfOperation")
+            .then(res => res.json())
+            .then(data => {
+                const mode = parseInt(data.modeOfOperation);
+                if (mode === 2) {
+                    location.reload(); // ✅ Mode is now correct — reload page
+                }
+            })
+            .catch(err => {
+                console.error("Error polling modeOfOperation:", err);
+            });
+    }, 3000); // ⏱️ Every 3 seconds
+}
+
+
+function fetchData() {
+    console.log("txSign:", txSign);
+    const e = `https://db1.wspr.live:443/?query=${encodeURIComponent(`\n        SELECT * FROM wspr.rx\n        WHERE time > subtractHours(now(), 24)\n        AND tx_sign = '${txSign}'\n        ORDER BY time DESC\n        LIMIT 2000 FORMAT JSON\n    `)}`;
+    return console.log("Fetching data from URL:", e), document.getElementById("loadingSpinner").style.display = "block", fetch(e, {method: "GET"}).then((e => (console.log("Response status:", e.status), e.ok ? e.text().then((e => JSON.parse(e))) : e.text().then((e => {
+        throw console.error("Error response text:", e), new Error("Error fetching data: " + e)
+    }))))).then((e => (console.log("Parsed JSON data:", e), e))).catch((e => {
+        throw console.error("Error fetching data:", e), new Error("Error fetching data: " + e.message)
+    })).finally((() => {
+        document.getElementById("loadingSpinner").style.display = "none"
+    }))
+}
+
+function rebootESP32() {
+    console.log("Reboot button clicked");
+    const e = document.getElementById("overlay");
+    e ? (e.style.display = "block", console.log("Overlay displayed")) : console.log("Overlay not found");
+    var t = new XMLHttpRequest;
+    t.open("GET", "/reboot", !0), t.send(), setTimeout(retryPageReload, 5e3)
+}
+
+// not used
+function factoryReset() {
+    console.log("Factory Reset button clicked");
+    var e = new bootstrap.Modal(document.getElementById("factoryResetModal"));
+    e.show(), document.getElementById("confirmFactoryReset").addEventListener("click", (function () {
+        console.log("Factory Reset confirmed");
+        var t = new XMLHttpRequest;
+        t.open("GET", "/factoryReset", !0), t.send(), e.hide()
+    }))
+}
+
+function retryPageReload() {
+    setTimeout(() => {
+        fetch(window.location.href, {method: "GET", cache: "no-store"})
+            .then((res) => {
+                if (res.ok) {
+                    location.reload(); // ✅ success
+                } else {
+                    console.log("Waiting for server... retrying");
+                    retryPageReload(); // 🔁 try again
+                }
+            })
+            .catch(() => {
+                console.log("Server not ready... retrying");
+                retryPageReload(); // 🔁 try again
+            });
+    }, 3000); // ⏳ wait 3 seconds between retries
+}
+
+
+function displayTime() {
+    const e = new Date, t = String(e.getHours()).padStart(2, "0"), n = String(e.getMinutes()).padStart(2, "0"),
+        o = String(e.getSeconds()).padStart(2, "0");
+    document.getElementById("LocalDigitalClock").textContent = `${t}:${n}:${o}`;
+    const a = String(e.getUTCHours()).padStart(2, "0"), r = String(e.getUTCMinutes()).padStart(2, "0"),
+        l = String(e.getUTCSeconds()).padStart(2, "0");
+    document.getElementById("UTCDigitalClock").textContent = `${a}:${r}:${l}`
+}
+
+
+const headers = ["time", "since", "band", "rx_sign", "rx_loc", "distance", "snr", "version"];
+let sortOrder = {};
+const bandMapping = {7: "40 m", 10: "30 m", 14: "20 m", 21: "15 m", 24: "12 m", 28: "10 m"},
+    bandColors = {7: "#FF0000", 10: "#00FF00", 14: "#0000FF", 21: "#FFFF00", 24: "#FF00FF", 28: "#00FFFF"};
+
+async function filterByBand(e) {
+    try {
+        console.log(`Filtering by band: ${bandMapping[e]}`);
+        const t = await fetchData();
+        console.log("Received data:", t);
+        const n = t.data.filter((t => t.band === e));
+        console.log("Filtered data:", n), 0 === n.length ? showNoRecordsAlert() : (displayData({data: n}), plotMap({data: n}), plotGlobe({data: n}))
+    } catch (e) {
+        displayError(e)
+    }
+}
+
+function displayData(e) {
+    const t = document.getElementById("results"), n = e.data;
+    if (0 === n.length) return void (t.innerHTML = '<div class="alert alert-info" role="alert">No data available.</div>');
+    let o = '<table class="table table-striped table-bordered"><thead class="table-dark"><tr>';
+    ["UTC Time", "Since", "Band", "RX Call", "RX Loc", "Distance", "SNR", "Version"].forEach(((e, t) => {
+        o += `<th onclick="sortTable(${t})">${e}</th>`, sortOrder[t] = "asc"
+    })), o += "</tr></thead><tbody>", n.forEach((e => {
+        const t = calculateSince(e.time);
+        o += "<tr>", headers.forEach((n => {
+            const a = ["band", "rx_sign", "rx_loc", "snr"].includes(n);
+            o += `<td class="${"distance" === n ? "text-end" : ""} ${a ? "text-center" : ""}">${"since" === n ? t : e[n]}</td>`
+        })), o += "</tr>"
+    })), o += "</tbody></table>", t.innerHTML = o
+}
+
+function calculateSince(e) {
+    const t = new Date - new Date(e.replace(" ", "T") + "Z"), n = Math.floor(t / 6e4);
+    if (n < 60) return `${n} minute(s) ago`;
+    return `${Math.floor(n / 60)} hour(s) ${n % 60} minute(s) ago`
+}
+
+function displayError(e) {
+    document.getElementById("results").innerHTML = '<div class="alert alert-danger" role="alert">' + e + "</div>"
+}
+
+function locatorToLatLon(locator) {
+    if (!locator || locator.length < 4) return null;
+    locator = locator.toUpperCase();
+
+    const A = 'A'.charCodeAt(0);
+    const a = 'a'.charCodeAt(0);
+    const lon =
+        (locator.charCodeAt(0) - A) * 20 +
+        (locator.charCodeAt(2) - '0'.charCodeAt(0)) * 2 +
+        (locator.length >= 6 ? (locator.charCodeAt(4) - a) * (5 / 60) : 0) +
+        (locator.length >= 8 ? (locator.charCodeAt(6) - '0'.charCodeAt(0)) * (5 / 600) : 0) - 180 +
+        (locator.length >= 6 ? 2.5 / 60 : 1);
+
+    const lat =
+        (locator.charCodeAt(1) - A) * 10 +
+        (locator.charCodeAt(3) - '0'.charCodeAt(0)) * 1 +
+        (locator.length >= 6 ? (locator.charCodeAt(5) - a) * (2.5 / 60) : 0) +
+        (locator.length >= 8 ? (locator.charCodeAt(7) - '0'.charCodeAt(0)) * (2.5 / 600) : 0) - 90 +
+        (locator.length >= 6 ? 1.25 / 60 : 0.5);
+
+    return {lat: lat.toFixed(6), lon: lon.toFixed(6)};
+}
+
+function plotMap(e) {
+    map && map.remove();
+    if (typeof HomeTXLat !== "undefined" && typeof HomeTXLon !== "undefined") {
+        map = L.map("map", {zoomControl: false}).setView([HomeTXLat, HomeTXLon], 5); // Zoom 5 for better TX focus
+        console.log(`[DEBUG] Map centered on Home TX at Lat=${HomeTXLat}, Lon=${HomeTXLon}`);
+    } else {
+        map = L.map("map", {zoomControl: false}).setView([46.8182, 8.2275], 2); // Default to Switzerland
+        console.log("[DEBUG] Map centered on default coordinates (Switzerland).");
+    }
+
+
+    const baseLayers = {
+        "Street View": L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: 'Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }),
+        "Satellite View": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+            attribution: "Tiles © Esri"
+        })
+    };
+    baseLayers["Street View"].addTo(map);
+    L.control.layers(baseLayers).addTo(map);
+
+    const markerGroup = L.markerClusterGroup();
+    const markerIcon = L.icon({
+        iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+        iconSize: [15, 25],
+        iconAnchor: [7.5, 25],
+        popupAnchor: [0, -25]
+    });
+
+    let txLatLng = null;
+    const allPoints = [];
+
+    e.data.forEach((entry) => {
+        if (!txLatLng) txLatLng = new L.LatLng(entry.tx_lat, entry.tx_lon);
+        const rxLatLng = new L.LatLng(entry.rx_lat, entry.rx_lon);
+
+        const marker = L.marker(rxLatLng, {icon: markerIcon}).bindPopup(
+            `<a href="https://www.qrz.com/db/${entry.rx_sign}" target="_blank">${entry.rx_sign}</a><br>${entry.distance} km`
+        );
+        markerGroup.addLayer(marker);
+
+        const color = bandColors[entry.band] || "#000000";
+        L.geodesic([txLatLng, rxLatLng], {weight: 1, opacity: 1, color: color, wrap: false, steps: 4}).addTo(map);
+
+        allPoints.push(rxLatLng);
+    });
+
+    if (txLatLng) allPoints.push(txLatLng);
+    if (allPoints.length === 0) {
+        showNoRecordsAlert();
+        return;
+    }
+
+    map.addLayer(markerGroup);
+    map.fitBounds(L.latLngBounds(allPoints));
+
+    // Band color legend
+    const legend = L.control({position: "bottomright"});
+    legend.onAdd = function () {
+        const div = L.DomUtil.create("div", "legend");
+        div.innerHTML = "<strong>Band Colors</strong><br>";
+        for (let band in bandMapping) {
+            if (bandMapping.hasOwnProperty(band)) {
+                div.innerHTML += `<i style="background:${bandColors[band]}"></i> ${bandMapping[band]}<br>`;
+            }
+        }
+        return div;
+    };
+    legend.addTo(map);
+
+    // 👉 Double-Click Handler: Recenter and Fit All RX Stations
+    map.on("dblclick", function () {
+        if (allPoints.length > 0) {
+            map.fitBounds(L.latLngBounds(allPoints).pad(0.1)); // Add slight padding for better view
+        }
+    });
+}
+
+function plotGlobe(e) {
+    if (!e.data || 0 === e.data.length) return void console.warn("[Globe] No data available to plot.");
+    let t;
+    viewer.entities.removeAll();
+    const n = {
+        7: Cesium.Color.RED,
+        10: Cesium.Color.GREEN,
+        14: Cesium.Color.BLUE,
+        21: Cesium.Color.YELLOW,
+        24: Cesium.Color.MAGENTA,
+        28: Cesium.Color.CYAN
+    };
+    e.data.forEach((e => {
+        if (null == e.tx_lon || null == e.tx_lat || null == e.rx_lon || null == e.rx_lat) return void console.warn("[Globe] Skipping invalid row:", e);
+        t || (t = Cesium.Cartesian3.fromDegrees(e.tx_lon, e.tx_lat));
+        const o = Cesium.Cartesian3.fromDegrees(e.rx_lon, e.rx_lat), a = n[e.band] || Cesium.Color.BLACK;
+        viewer.entities.add({polyline: {positions: [t, o], width: 1, material: a}})
+    })), viewer.entities.values.length > 0 ? viewer.zoomTo(viewer.entities) : console.warn("[Globe] No entities to zoom to.")
+}
+
+function sortTable(e) {
+    const t = document.querySelector("table tbody"),
+        n = Array.from(t.querySelectorAll("tr")),
+        o = ["distance", "snr"].includes(headers[e]),
+        a = sortOrder[e];
+
+    sortOrder[e] = a === "asc" ? "desc" : "asc";
+
+    n.sort((rowA, rowB) => {
+        const cellA = rowA.children[e];
+        const cellB = rowB.children[e];
+
+        // Check if cells exist before accessing textContent
+        if (!cellA || !cellB) return 0;
+
+        const textA = cellA.textContent.trim();
+        const textB = cellB.textContent.trim();
+
+        if (o) {
+            return sortOrder[e] === "asc"
+                ? parseFloat(textA) - parseFloat(textB)
+                : parseFloat(textB) - parseFloat(textA);
+        } else {
+            return sortOrder[e] === "asc"
+                ? textA.localeCompare(textB)
+                : textB.localeCompare(textA);
+        }
+    });
+
+    while (t.firstChild) t.removeChild(t.firstChild);
+    n.forEach(row => t.appendChild(row));
+}
+
+
+function showNoRecordsAlert() {
+    var e = document.createElement("div");
+    e.classList.add("alert", "alert-danger", "alert-dismissible", "fade", "show"), e.setAttribute("role", "alert"), e.innerHTML = '\n        No records for this band.\n        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>\n    ', document.getElementById("alertPlaceholder").appendChild(e), setTimeout((function () {
+        e.remove()
+    }), 1e3)
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+
+
+    fetch("/getModeOfOperation")
+        .then(res => res.json())
+        .then(data => {
+            const mode = parseInt(data.modeOfOperation); // ensure it's a number
+            console.log("Mode of Operation:", mode);
+
+            if (mode !== 2) {
+                const blocker = document.getElementById("blockerOverlay");
+                const msg = document.getElementById("blockerMessage");
+
+                blocker.style.display = "flex";
+                msg.textContent = "Please switch the device to WSPR mode (Menu option 2) before using this page.";
+
+                pollModeAndReload(); // 👈 Add this line
+            }
+
+
+        })
+        .catch(err => {
+            console.error("Error fetching modeOfOperation:", err);
+            // Optional: show a blocker if the fetch fails
+            document.getElementById("blockerOverlay").style.display = "flex";
+            document.getElementById("blockerMessage").textContent = "Unable to determine mode of operation.";
+        });
+
+
+    // Hide overlay initially
+    document.getElementById("overlay").style.display = "none";
+
+    // Load Cesium Key and Initialize Viewer
+    fetch("cesium.key")
+        .then((res) => res.text())
+        .then((keyContent) => {
+            const keyMatch = keyContent.match(/cesiumKey\s*=\s*["']([^"']+)["']/);
+
+            if (keyMatch && keyMatch[1]) {
+                const cesiumKey = keyMatch[1].trim();
+                console.log("Cesium Key Loaded:", cesiumKey);
+
+                const script = document.createElement("script");
+                script.src = "https://cdnjs.cloudflare.com/ajax/libs/cesium/1.92.0/Cesium.js";
+                script.onload = () => initializeCesium(cesiumKey);
+                document.head.appendChild(script);
+            } else {
+                console.warn("Cesium Key not found or incorrectly formatted in cesium.key.");
+                document.getElementById("cesiumContainer").style.display = "none";
+            }
+        })
+        .catch(() => {
+            document.getElementById("cesiumContainer").style.display = "none";
+        });
+
+    // Fetch and Apply Settings
+    fetch("/getAllSettings")
+        .then((res) => res.json())
+        .then((settings) => {
+            console.log("[DEBUG] Parsed JSON data:", settings);
+
+            if (settings.version) {
+                document.getElementById("version").textContent = settings.version;
+            }
+
+            if (settings.callsign) {
+                document.getElementById("callsign").value = settings.callsign;
+                txSign = settings.callsign.toUpperCase();
+            }
+
+            if (settings.locator) {
+                document.getElementById("locator").value = settings.locator;
+                const homeCoords = locatorToLatLon(settings.locator);
+
+                if (homeCoords) {
+                    HomeTXLat = parseFloat(homeCoords.lat);
+                    HomeTXLon = parseFloat(homeCoords.lon);
+                    console.log(`[DEBUG] Home TX Position: Lat=${HomeTXLat}, Lon=${HomeTXLon}`);
+                } else {
+                    console.warn("[WARN] Invalid locator provided, could not calculate Home TX position.");
+                }
+
+            }
+
+            if (settings.power) {
+                document.getElementById("power").value = settings.power;
+                updatePowerDBM(settings.power);
+            }
+
+            if (settings.scheduleState) {
+                const scheduleElement = document.getElementById(settings.scheduleState);
+                if (scheduleElement) {
+                    scheduleElement.checked = true;
+                    console.log(`[DEBUG] TX Schedule set to: ${settings.scheduleState}`);
+                } else {
+                    console.warn(`[WARN] Radio button with ID '${settings.scheduleState}' not found.`);
+                }
+            } else {
+                console.warn("[WARN] scheduleState field missing in /getAllSettings response.");
+            }
+        })
+        .catch((error) => {
+            console.error("[ERROR] Failed to fetch /getAllSettings:", error);
+        })
+        .finally(() => {
+            console.log("[DEBUG] Initializing periodic updates and data fetch...");
+
+            setInterval(displayTime, 1000);
+            setInterval(updateProgressBar, 1000);
+
+            console.log("[DEBUG] Fetching initial WSPR data...");
+            fetchData()
+                .then((data) => {
+                    console.log("[DEBUG] WSPR Data fetched successfully.");
+                    displayData(data);
+                    plotMap(data);
+                    plotGlobe(data);
+                })
+                .catch((error) => {
+                    console.error("[ERROR] Failed to fetch WSPR data:", error);
+                    displayError(error);
+                });
+        });
+});
+
+
+</script>
+<script>$(document).ready((function () {
+    $("#WSPRclock").thooClock({
+        size: 200,
+        brandTextSizeFactor: 15,
+        brandTextYOffset: 8,
+        brandText2SizeFactor: 24,
+        brandText2YOffset: 5.5
+    })
+})), function (e) {
+    e.fn.thooClock = function (t) {
+        return this.each((function () {
+            const n = this, o = {
+                size: 250,
+                dialColor: "#000",
+                dialBackgroundColor: "transparent",
+                secondHandColor: "#ff0202",
+                minuteHandColor: "#222",
+                hourHandColor: "#222",
+                timeCorrection: {operator: "+", hours: 0, minutes: 0},
+                showNumerals: !0,
+                numerals: Array.from({length: 12}, ((e, t) => ({[t + 1]: t + 1}))),
+                sweepingMinutes: !0,
+                sweepingSeconds: !0,
+                numeralFont: "arial",
+                brandFont: "arial",
+                brandText: "WSPR Beacon",
+                brandText2: "By HB9IIU",
+                brandTextSizeFactor: 28,
+                brandTextYOffset: 4,
+                brandText2SizeFactor: 44,
+                brandText2YOffset: 5
+            }, s = e.extend({}, o, t);
+            Object.assign(n, s);
+            const r = document.createElement("canvas"), a = r.getContext("2d");
+            r.width = n.size, r.height = n.size, e(r).appendTo(n);
+            const i = parseInt(n.size / 2, 10);
+            a.translate(i, i);
+            const l = e => Math.PI / 180 * e;
+
+            function d(e) {
+                a.beginPath(), a.moveTo(0, 0), a.lineTo(0, -e), a.stroke()
+            }
+
+            !function e() {
+                const t = new Date, o = n.timeCorrection;
+                o && (t.setHours(t.getHours() + ("+" === o.operator ? o.hours : -o.hours)), t.setMinutes(t.getMinutes() + ("+" === o.operator ? o.minutes : -o.minutes)));
+                const s = t.getSeconds(), r = n.sweepingSeconds ? t.getMilliseconds() : 0, c = t.getMinutes() + s / 60,
+                    f = function (e) {
+                        return e >= 12 ? e - 12 : e
+                    }(t.getHours() + c / 60);
+                a.clearRect(-i, -i, n.size, n.size), function () {
+                    const e = i - n.size / 50, t = i - n.size / 400;
+                    a.beginPath(), a.arc(0, 0, t, 0, 2 * Math.PI), a.fillStyle = n.dialBackgroundColor, a.fill();
+                    for (let t = 1; t <= 60; t++) {
+                        const o = Math.PI / 30 * t, s = Math.sin(o), r = Math.cos(o), i = t / 5;
+                        a.beginPath(), a.strokeStyle = n.dialColor, a.lineCap = "round", a.lineWidth = t % 5 == 0 ? parseInt(n.size / 50, 10) : parseInt(n.size / 100, 10);
+                        const l = s * (e - e / 4.2), d = r * -(e - e / 4.2);
+                        t % 5 == 0 && n.showNumerals && n.numerals.forEach((e => {
+                            if (i === parseInt(Object.keys(e)[0], 10)) {
+                                const t = e[i], o = parseInt(n.size / 13, 10);
+                                a.font = `100 ${o}px ${n.numeralFont}`;
+                                const s = a.measureText(t).width;
+                                a.fillStyle = n.dialColor, a.fillText(t, l - s / 2, d)
+                            }
+                        }));
+                        const c = s * (t % 5 == 0 ? e - e / 9 : e - e / 20),
+                            f = r * -(t % 5 == 0 ? e - e / 9 : e - e / 20), u = s * e, h = r * -e;
+                        a.moveTo(c, f), a.lineTo(u, h), a.stroke()
+                    }
+                    if (n.brandText) {
+                        const e = parseInt(n.size / n.brandTextSizeFactor, 10);
+                        a.font = `100 ${e}px ${n.brandFont}`;
+                        const t = a.measureText(n.brandText).width;
+                        a.fillText(n.brandText, -t / 2, n.size / n.brandTextYOffset)
+                    }
+                    if (n.brandText2) {
+                        const e = parseInt(n.size / n.brandText2SizeFactor, 10);
+                        a.textBaseline = "middle", a.font = `100 ${e}px ${n.brandFont}`;
+                        const t = a.measureText(n.brandText2).width;
+                        a.fillText(n.brandText2, -t / 2, n.size / n.brandText2YOffset)
+                    }
+                }(), function (e) {
+                    const t = n.size / 3;
+                    a.save(), a.lineWidth = parseInt(n.size / 25, 10), a.lineCap = "round", a.strokeStyle = n.hourHandColor, a.rotate(l(30 * e)), a.shadowColor = "rgba(0,0,0,.5)", a.shadowBlur = parseInt(n.size / 50, 10), a.shadowOffsetX = parseInt(n.size / 300, 10), a.shadowOffsetY = parseInt(n.size / 300, 10), d(t), a.restore()
+                }(f), function (e) {
+                    const t = n.size / 2.2;
+                    a.save(), a.lineWidth = parseInt(n.size / 50, 10), a.lineCap = "round", a.strokeStyle = n.minuteHandColor, a.rotate(l(6 * e)), a.shadowColor = "rgba(0,0,0,.5)", a.shadowBlur = parseInt(n.size / 50, 10), a.shadowOffsetX = parseInt(n.size / 250, 10), a.shadowOffsetY = parseInt(n.size / 250, 10), d(t), a.restore()
+                }(c), function (e, t) {
+                    const o = i - n.size / 40;
+                    a.save(), a.lineWidth = parseInt(n.size / 150, 10), a.lineCap = "round", a.strokeStyle = n.secondHandColor, a.rotate(l(.006 * e + 6 * t)), a.shadowColor = "rgba(0,0,0,.5)", a.shadowBlur = parseInt(n.size / 80, 10), a.shadowOffsetX = parseInt(n.size / 200, 10), a.shadowOffsetY = parseInt(n.size / 200, 10), d(o), a.beginPath(), a.arc(0, 0, parseInt(n.size / 30, 10), 0, 2 * Math.PI), a.fillStyle = n.secondHandColor, a.fill(), a.restore()
+                }(r, s), requestAnimationFrame(e)
+            }()
+        })), this
+    }
+}(jQuery)</script>
+</body>
+</html>

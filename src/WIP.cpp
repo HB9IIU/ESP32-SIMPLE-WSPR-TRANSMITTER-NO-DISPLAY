@@ -32,20 +32,16 @@ const char *ssid = "MESH";
 const char *password = "Nestle2010Nestle";
 const char *hostname = "wspr";
 
-// Replace with your static IP, gateway, and subnet if using static IP
-IPAddress local_IP(192, 168, 0, 206);
-IPAddress gateway(192, 168, 0, 1);
-IPAddress subnet(255, 255, 255, 0);
-const int maxAttempts = 5;          // Maximum number of attempts to connect
-
 // Globals for DHCP-learned values
 IPAddress dhcp_ip;
 IPAddress dhcp_gateway;
 IPAddress dhcp_subnet;
 
 // Static DNS (hardcoded)
-IPAddress primaryDNS(8, 8, 8, 8);     // 🟢 Google DNS
-IPAddress secondaryDNS(1, 1, 1, 1);   // 🔵 Cloudflare DNS
+IPAddress primaryDNS(8, 8, 8, 8);   // 🟢 Google DNS
+IPAddress secondaryDNS(1, 1, 1, 1); // 🔵 Cloudflare DNS
+
+const int maxWiFiConnectionAttempts = 5; // Maximum number of attempts to connect
 
 char call[8]; // USER CALLSIGN will be retrieved through preferences
 char loc[7];  // USER MAIDENHEAD GRID LOCATOR first 6 letters.
@@ -63,9 +59,10 @@ TinyGPSPlus gps;
 // Create a Preferences object for storing and retrieving key-value
 Preferences preferences;
 
+
 // Calibration variables
 int32_t cal_factor = 0;
-int calFrequencyInMhz = 0;
+int calFrequencyInMhz = 14;
 
 bool warmingup = false;
 unsigned long long WSPR_TX_operatingFrequ;
@@ -121,23 +118,28 @@ void manuallyResyncTime();
 void initialTimeSyncViaSNTP();
 bool syncTimeFromGPS();
 String latLonToMaidenhead(float lat, float lon);
-bool connectToWiFiWithStaticIP();
 bool connectToWiFi_DHCP_then_Static();
+byte getNextEnabledBandIndex(byte currentIndex);
+byte getFirstEnabledBandIndex();
 // ################################################################################################
 // Prototype declarations
 // related to WSPR
-// ✅ WSPR Band Definitions (Hz) from official sub-band plan
+// ✅ WSPR Band Definitions (Hz) including 6m support
 // https://www.wsprnet.org/drupal/sites/wsprnet.org/files/wspr-qrg.pdf
 const char *WSPRbandNames[] = {
-    "80m", "40m", "30m", "20m", "17m", "15m", "12m", "10m"};
+    "80m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m"};
 
 const unsigned long WSPRbandStart[] = {
-    3570000, 7040000, 10140100, 14097000, 18106000, 21096000, 24926000, 28126000};
+    3570000, 7040000, 10140100, 14097000, 18106000,
+    21096000, 24926000, 28126000, 50293000};
 
 const unsigned long WSPRbandEnd[] = {
-    3570200, 7040200, 10140300, 14097200, 18106200, 21096200, 24926200, 28126200};
+    3570200, 7040200, 10140300, 14097200, 18106200,
+    21096200, 24926200, 28126200, 50293200};
 
 const byte numWSPRbands = sizeof(WSPRbandNames) / sizeof(WSPRbandNames[0]);
+
+bool wsprBandEnabled[numWSPRbands] = {false}; // All disabled initially
 
 // ✅ Returns a randomized safe WSPR transmit frequency for a given band index
 unsigned long setRandomWSPRfrequency(byte bandIndex);
@@ -165,7 +167,6 @@ void setup()
     Serial.println("LittleFS mounted successfully");
     // Connect to Wi-Fi
     connectToWiFi_DHCP_then_Static();
-    // connectToWiFiWithStaticIP();
 
     // Retrieve user settings
     retrieveUserSettings();
@@ -179,6 +180,13 @@ void setup()
     // Start server
 
     configure_web_server();
+
+
+selectedBandIndex = getFirstEnabledBandIndex();
+Serial.printf("🎯 Starting on first enabled band: %s (%d)\n", WSPRbandNames[selectedBandIndex], selectedBandIndex);
+
+
+
 }
 //---------------------------------------------------------------------------------------------
 void loop()
@@ -280,8 +288,11 @@ void loop()
     {
         calibrationStarted = true;
         setFrequencyInMhz(calFrequencyInMhz);
+        Serial.printf("📡 Frequency set to %s Hz and clock powered ON.\n", formatFrequencyWithDots(calFrequencyInMhz * 1e6).c_str());
     }
     delay(5);
+    // 🔁 Switch to next enabled band for next TX
+selectedBandIndex = getNextEnabledBandIndex(selectedBandIndex);
 }
 
 //---------------------------------------------------------------------------------------------
@@ -321,6 +332,8 @@ void initSI5351()
     si5351.set_freq(TX_referenceFrequ, SI5351_CLK0);
 
     // 💪 Set drive strength for the selected clock output (strongest = 8 mA)
+    Serial.print("💪 Setting RF output strength to max ");
+
     si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA);
 
     // 📴 Disable all unused outputs among CLK0, CLK1, and CLK2
@@ -537,7 +550,7 @@ void transmitWSPR()
 
         Serial.print(">");
         if (interruptWSPRcurrentTX)
-            break;
+            return; // goes back to main loop
     }
     // Record end time
     unsigned long txEndEpoch = time(nullptr);
@@ -643,6 +656,55 @@ void retrieveUserSettings()
     Serial.printf("📢 Transmission Interval: %d seconds (%d minutes)\n",
                   intervalBetweenTx, intervalBetweenTx / 60);
 
+    // 📻 Retrieve Selected WSPR Bands
+    String storedBands = preferences.getString("enabledBands", "");
+
+    if (storedBands.isEmpty())
+    {
+        Serial.println("⚠️ Enabled bands not found! Defaulting to 20m (index 3) 🆕");
+        storedBands = "3"; // Default to 20m only
+        preferences.putString("enabledBands", storedBands);
+    }
+    else
+    {
+        Serial.println("✅ Enabled bands retrieved from Preferences.");
+    }
+    Serial.printf("📻 Enabled bands string: \"%s\"\n", storedBands.c_str());
+
+    // Parse comma-separated band indices
+    for (int i = 0; i < numWSPRbands; i++)
+    {
+        wsprBandEnabled[i] = false; // Reset first
+    }
+
+    int start = 0;
+    while (start < storedBands.length())
+    {
+        int end = storedBands.indexOf(',', start);
+        if (end == -1)
+            end = storedBands.length();
+
+        String token = storedBands.substring(start, end);
+        int idx = token.toInt();
+
+        if (idx >= 0 && idx < numWSPRbands)
+        {
+            wsprBandEnabled[idx] = true;
+        }
+
+        start = end + 1;
+    }
+
+    // 🧾 Print enabled bands
+    Serial.println("📡 Bands marked as ENABLED:");
+    for (int i = 0; i < numWSPRbands; i++)
+    {
+        if (wsprBandEnabled[i])
+        {
+            Serial.printf("   ✅ %s (%d)\n", WSPRbandNames[i], i);
+        }
+    }
+
     // 🔧 Retrieve Calibration Factor
     cal_factor = preferences.getInt("cal_factor", 9999999);
     if (cal_factor == 9999999)
@@ -700,7 +762,65 @@ void configure_web_server()
     server.on("/cesium.key", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(FILESYSTEM, "/cesium.key", "text/plain"); });
 
-    // 🔧 Settings and data endpoints
+   // 🔄 HTTP Endpoint: Return list of selected WSPR bands as JSON
+
+   server.on("/getSelectedBands", HTTP_GET, [](AsyncWebServerRequest *request) {
+    StaticJsonDocument<128> doc;
+    JsonArray arr = doc.createNestedArray("selectedBands");
+
+    for (int i = 0; i < numWSPRbands; i++) {
+        if (wsprBandEnabled[i]) {
+            arr.add(i);
+        }
+    }
+
+    String json;
+    serializeJson(doc, json);
+    request->send(200, "application/json", json);
+
+    Serial.println("📤 Sent selected band indices to client.");
+});
+   
+   // 🔄 HTTP Endpoint: Update selected WSPR bands from client
+server.on("/updateSelectedBands", HTTP_POST, [](AsyncWebServerRequest *request){
+    if (request->hasParam("bands", true)) {
+        String bandList = request->getParam("bands", true)->value();  // e.g., "0,2,5"
+        Serial.printf("📥 Received updated band list: \"%s\"\n", bandList.c_str());
+
+        // Save to preferences
+        preferences.begin("settings", false);
+        preferences.putString("enabledBands", bandList);
+        preferences.end();
+
+        // Update wsprBandEnabled[] in memory
+        for (int i = 0; i < numWSPRbands; i++) {
+            wsprBandEnabled[i] = false;  // Clear all
+        }
+
+        int start = 0;
+        while (start < bandList.length()) {
+            int commaIndex = bandList.indexOf(',', start);
+            if (commaIndex == -1) commaIndex = bandList.length();
+            int bandIndex = bandList.substring(start, commaIndex).toInt();
+            if (bandIndex >= 0 && bandIndex < numWSPRbands) {
+                wsprBandEnabled[bandIndex] = true;
+            }
+            start = commaIndex + 1;
+        }
+
+        request->send(200, "text/plain", "Bands updated");
+        isFirstIteration = true;
+        interruptWSPRcurrentTX = true;
+    } else {
+        request->send(400, "text/plain", "Missing bands parameter");
+    }
+});
+
+   
+   
+   
+   
+              // 🔧 Settings and data endpoints
     server.on("/getAllSettings", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     preferences.begin("settings", true);
@@ -814,18 +934,13 @@ void configure_web_server()
     request->send(200, "text/plain", "OK"); });
 
     // 🛠️ Control and calibration
-    server.on("/setFrequency", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/startCalibtation", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-    Serial.println("🛠️ Entering Calibration Mode");
+Serial.println("\n\n⚠️ Transmission Stopped to enter Calibration Mode");
     interruptWSPRcurrentTX = true;
     performCalibration=true;
-    if (request->hasParam("frequency")) {
-      String frequencyStr = request->getParam("frequency")->value();
-      calFrequencyInMhz = strtoull(frequencyStr.c_str(), NULL, 10);
-      setFrequencyInMhz(calFrequencyInMhz);
-      Serial.printf("📡 Frequency set to %s Hz and clock powered ON.\n", formatFrequencyWithDots(calFrequencyInMhz * 1e6).c_str());
-    }
-    request->send(200, "text/plain", "Frequency and clock power set"); });
+   
+    request->send(200, "text/plain", "Enterred Calibration mode"); });
 
     server.on("/updateCalFactor", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -838,24 +953,21 @@ void configure_web_server()
 
     server.on("/saveCalFactor", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-    modeOfOperation = 2;
-    isFirstIteration = true;
+ 
+
     if (request->hasParam("calFactor")) {
       cal_factor = request->getParam("calFactor")->value().toInt();
       preferences.begin("settings", false);
       preferences.putInt("cal_factor", cal_factor);
       preferences.end();
       Serial.printf("\n📏 Calibration factor saved: %d\n", cal_factor);
-      si5351.set_clock_pwr(SI5351_CLK0, 0);  // TX OFF
       Serial.println("✅ Exiting Calibration Mode, Rebooting");
-      ESP.restart();
+ 
     }
     request->send(200, "text/plain", "Calibration factor saved"); });
 
     server.on("/getCalFactor", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    Serial.printf("📤 Sending Calibration Factor: %d\n", cal_factor);
-    request->send(200, "text/plain", String(cal_factor)); });
+              { request->send(200, "text/plain", String(cal_factor)); });
 
     // Reboot and reset
     server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -1093,63 +1205,11 @@ String latLonToMaidenhead(float lat, float lon)
     return String(maiden);
 }
 
-bool connectToWiFiWithStaticIP()
-{
-    int attempts = 0;
-    bool connected = false;
-
-    WiFi.setHostname(hostname); // Apply DHCP hostname
-    WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS);
-    // Retry loop to connect to Wi-Fi
-
-    while (attempts < maxAttempts && !connected)
-    {
-        WiFi.begin(ssid, password);
-
-        Serial.print("Connecting to Wi-Fi");
-        while (WiFi.status() != WL_CONNECTED)
-        {
-            delay(500);
-            Serial.print(".");
-        }
-
-        if (WiFi.status() == WL_CONNECTED)
-        {
-            connected = true;
-            Serial.println("\nConnected to Wi-Fi");
-            Serial.print("IP Address: ");
-            Serial.println(WiFi.localIP());
-        }
-        else
-        {
-            Serial.println("\nFailed to connect to Wi-Fi, retrying...");
-            attempts++;
-            delay(1000); // Wait before retrying
-        }
-    }
-    // ✅ Start mDNS after Wi-Fi is connected
-    if (MDNS.begin(hostname))
-    {
-        Serial.println("✅ mDNS responder started: http://wspr.local");
-    }
-    else
-    {
-        Serial.println("❌ Error starting mDNS");
-    }
-    // If not connected after maxAttempts, reset the ESP32
-    if (!connected)
-    {
-        Serial.println("Failed to connect after multiple attempts. Resetting ESP32...");
-        ESP.restart();
-    }
-    return connected;
-}
-
 bool connectToWiFi_DHCP_then_Static()
 {
     Serial.println("📡 Connecting to Wi-Fi in DHCP mode...");
     WiFi.mode(WIFI_STA);
-    WiFi.setHostname(hostname);  // Apply hostname before connecting
+    WiFi.setHostname(hostname); // Apply hostname before connecting
     WiFi.begin(ssid, password);
 
     unsigned long startAttemptTime = millis();
@@ -1166,16 +1226,21 @@ bool connectToWiFi_DHCP_then_Static()
     }
 
     // ✅ DHCP successful — gather config
-    dhcp_ip      = WiFi.localIP();
+    dhcp_ip = WiFi.localIP();
     dhcp_gateway = WiFi.gatewayIP();
-    dhcp_subnet  = WiFi.subnetMask();
+    dhcp_subnet = WiFi.subnetMask();
 
     Serial.println("\n✅ Connected via DHCP:");
-    Serial.print("   📍 IP Address : "); Serial.println(dhcp_ip);
-    Serial.print("   🚪 Gateway    : "); Serial.println(dhcp_gateway);
-    Serial.print("   📦 Subnet     : "); Serial.println(dhcp_subnet);
-    Serial.print("   🟢 DNS 1 (DHCP): "); Serial.println(WiFi.dnsIP(0));
-    Serial.print("   🔵 DNS 2 (DHCP): "); Serial.println(WiFi.dnsIP(1));
+    Serial.print("   📍 IP Address : ");
+    Serial.println(dhcp_ip);
+    Serial.print("   🚪 Gateway    : ");
+    Serial.println(dhcp_gateway);
+    Serial.print("   📦 Subnet     : ");
+    Serial.println(dhcp_subnet);
+    Serial.print("   🟢 DNS 1 (DHCP): ");
+    Serial.println(WiFi.dnsIP(0));
+    Serial.print("   🔵 DNS 2 (DHCP): ");
+    Serial.println(WiFi.dnsIP(1));
 
     // 🔌 Disconnect before static reconfig
     Serial.println("🔌 Disconnecting to reconfigure static IP...");
@@ -1201,9 +1266,12 @@ bool connectToWiFi_DHCP_then_Static()
     }
 
     Serial.println("\n✅ Reconnected with static IP and DNS:");
-    Serial.print("   📍 IP Address : "); Serial.println(WiFi.localIP());
-    Serial.print("   🟢 DNS 1      : "); Serial.println(primaryDNS);
-    Serial.print("   🔵 DNS 2      : "); Serial.println(secondaryDNS);
+    Serial.print("   📍 IP Address : ");
+    Serial.println(WiFi.localIP());
+    Serial.print("   🟢 DNS 1      : ");
+    Serial.println(primaryDNS);
+    Serial.print("   🔵 DNS 2      : ");
+    Serial.println(secondaryDNS);
 
     // 🌐 Start mDNS
     Serial.println("🌐 Starting mDNS service... ");
@@ -1218,4 +1286,24 @@ bool connectToWiFi_DHCP_then_Static()
     }
 
     return true;
+}
+
+byte getNextEnabledBandIndex(byte currentIndex)
+{
+    for (int offset = 1; offset <= numWSPRbands; offset++)
+    {
+        byte nextIndex = (currentIndex + offset) % numWSPRbands;
+        if (wsprBandEnabled[nextIndex])
+            return nextIndex;
+    }
+    return currentIndex; // fallback: return same if none enabled (shouldn't happen)
+}
+byte getFirstEnabledBandIndex()
+{
+    for (byte i = 0; i < numWSPRbands; i++)
+    {
+        if (wsprBandEnabled[i])
+            return i;
+    }
+    return 0; // fallback to 0 if none are enabled
 }

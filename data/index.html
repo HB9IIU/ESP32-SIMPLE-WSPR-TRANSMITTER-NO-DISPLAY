@@ -1,507 +1,377 @@
 <!doctype html>
 <html class="h-100" lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta content="width=device-width,initial-scale=1" name="viewport">
-    <meta content="" name="description">
-    <title>HB9IIU WSPR Beacon</title>
-    <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
-          rel="stylesheet">
-    <link crossorigin="" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet">
-    <link href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" rel="stylesheet">
-    <link href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.92.0/Widgets/widgets.css" rel="stylesheet">
-    <style>main > .container {
-        padding: 60px 15px 0;
-        margin-top: 15px;
-    }
-
-    #callsign, #locator {
-        text-transform: uppercase;
-    }
-
-    #power {
-        width: 100px;
-    }
-
-    input[type=text] {
-        text-align: center;
-    }
-
-    .reboot-button {
-        display: flex;
-        justify-content: center;
-    }
-
-    .progress {
-        height: 30px;
-    }
-
-    .progress-container {
-        display: none;
-    }
-
-    @keyframes blink-red {
-        0% {
-            background-color: red;
-        }
-        50% {
-            background-color: transparent;
-        }
-        100% {
-            background-color: red;
-        }
-    }
-
-    @keyframes blink-green {
-        0% {
-            background-color: #198853;
-        }
-        50% {
-            background-color: transparent;
-        }
-        100% {
-            background-color: #198853;
-        }
-    }
-
-    .freq-div-highlight-TX {
-        background-color: red;
-        color: #fff;
-        font-weight: 700;
-        padding: 5px 0;
-        border-radius: 6px;
-        animation: blink-red 1s infinite;
-    }
-
-    .freq-div-highlight-RX {
-        background-color: #1ebb3e;
-        color: #fff;
-        font-weight: 700;
-        padding: 5px 0;
-        border-radius: 6px;
-        animation: blink-green 3s infinite;
-    }
-
-    .highlight_RX {
-        color: #fff;
-    }
-
-    .text-end {
-        text-align: right;
-    }
-
-    .text-center {
-        text-align: center;
-    }
-
-    #overlay {
-        position: fixed;
-        display: none;
-        width: 100%;
-        height: 100%;
-        top: 0;
-        left: 0;
-        background-color: rgba(0, 0, 0, .7);
-        z-index: 9999;
-        cursor: pointer;
-    }
-
-    #overlay-content {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        text-align: center;
-        color: #fff;
-        font-size: 20px;
-    }
-
-    .spinner {
-        border: 16px solid #f3f3f3;
-        border-top: 16px solid #3498db;
-        border-radius: 50%;
-        width: 120px;
-        height: 120px;
-        animation: spin 2s linear infinite;
-        margin: 0 auto 20px;
-    }
-
-    @keyframes spin {
-        0% {
-            transform: rotate(0);
-        }
-        100% {
-            transform: rotate(360deg);
-        }
-    }
-
-    #cesiumContainer, #map {
-        width: 100%;
-        height: 600px;
-        margin-bottom: 20px;
-    }
-
-    #loadingSpinner {
-        display: none;
-    }
-
-    .legend i {
-        width: 18px;
-        height: 18px;
-        float: left;
-        margin-right: 8px;
-        opacity: .7;
-    }
-
-    .custom-button {
-        max-width: 300px;
-        width: 100%;
-        font-size: 18px;
-    }
-
-    .modal-logo {
-        width: 160px;
-        height: 160px;
-    }
-
-    #progressLabel, #TXProgressLabel {
-        font-size: 18px; /* Adjust size as needed */
-        font-weight: bold;
-        color: white; /* Ensure visibility over the progress bar */
-    }</style>
-    <link href="https://fonts.googleapis.com/css?family=Share+Tech+Mono&display=swap" rel="stylesheet">
-</head>
-<body class="d-flex flex-column h-100">
-<header>
-    <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
-        <div class="container-fluid"><a class="navbar-brand" href="">Web WSPR Beacon</a>
-            <button aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" class="navbar-toggler
+    <head>
+        <meta charset="utf-8">
+        <meta content="width=device-width,initial-scale=1" name="viewport">
+        <meta content="" name="description">
+        <title>HB9IIU WSPR Beacon</title>
+        <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link crossorigin="" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet">
+        <link href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" rel="stylesheet">
+        <link href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.92.0/Widgets/widgets.css" rel="stylesheet">
+        <style>main > .container { padding: 60px 15px 0; margin-top: 15px; } #callsign, #locator { text-transform: uppercase; } #power { width: 100px; } input[type=text] { text-align: center; } .reboot-button { display: flex; justify-content: center; } .progress { height: 30px; } .progress-container { display: none; } @keyframes blink-red { 0% {  background-color: red; }  50% {  background-color: transparent; }  100% {  background-color: red; } } @keyframes blink-green { 0% {  background-color: #198853; }  50% {  background-color: transparent; }  100% {  background-color: #198853; } } .freq-div-highlight-TX { background-color: red; color: #fff; font-weight: 700; padding: 5px 0; border-radius: 6px; animation: blink-red 1s infinite; } .freq-div-highlight-RX { background-color: #1ebb3e; color: #fff; font-weight: 700; padding: 5px 0; border-radius: 6px; animation: blink-green 3s infinite; } .highlight_RX { color: #fff; } .text-end { text-align: right; } .text-center { text-align: center; } #overlay { position: fixed; display: none; width: 100%; height: 100%; top: 0; left: 0; background-color: rgba(0, 0, 0, .7); z-index: 9999; cursor: pointer; } #overlay-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #fff; font-size: 20px; } .spinner { border: 16px solid #f3f3f3; border-top: 16px solid #3498db; border-radius: 50%; width: 120px; height: 120px; animation: spin 2s linear infinite; margin: 0 auto 20px; } @keyframes spin { 0% {  transform: rotate(0); }  100% {  transform: rotate(360deg); } } #cesiumContainer, #map { width: 100%; height: 600px; margin-bottom: 20px; } #loadingSpinner { display: none; } .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: .7; } .custom-button { max-width: 300px; width: 100%; font-size: 18px; } .modal-logo { width: 160px; height: 160px; } #progressLabel, #TXProgressLabel { font-size: 18px;  /* Adjust size as needed */ font-weight: bold; color: white;  /* Ensure visibility over the progress bar */ }</style>
+        <link href="https://fonts.googleapis.com/css?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    </head>
+    <body class="d-flex flex-column h-100">
+        <header>
+            <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+                <div class="container-fluid">
+                    <a class="navbar-brand" href="">Web WSPR Beacon</a>
+                    <button aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" class="navbar-toggler
 " data-bs-target="#navbarCollapse" data-bs-toggle="collapse" type="button">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarCollapse">
-                <ul class="navbar-nav me-auto mb-2 mb-md-0">
-                    <li class="nav-item">
-                        <a class="active nav-link" href="https://wspr.rocks/" target="_blank">wspr.rocks</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="active nav-link" href="http://websdr.org/" target="_blank">websdr.org</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="active nav-link" href="http://kiwisdr.com/.public/" target="_blank">kiwisdr.com</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="active nav-link" href="https://github.com/HB9IIU" target="_blank">gituHub</a>
-                    </li>
-                </ul>
-            </div>
-            <h6 id="version" style="color:#7f7f7f">Beta 1.0</h6>
-        </div>
-    </nav>
-</header>
-<main class="flex-shrink-0">
-    <div class="container">
-        <div class="row">
-            <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4 pe-4">
-                <div class="row g-0">
-                    <div class="col-md-12 text-end">
-                        <h4 style="text-align:left">
-                            TX Status <span class="fs-6">Band Start Frequencies</span></h4>
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="collapse navbar-collapse" id="navbarCollapse">
+                        <ul class="navbar-nav me-auto mb-2 mb-md-0">
+                            <li class="nav-item">
+                                <a class="active nav-link" href="https://wspr.rocks/" target="_blank">wspr.rocks</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="active nav-link" href="http://websdr.org/" target="_blank">websdr.org</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="active nav-link" href="http://kiwisdr.com/.public/" target="_blank">kiwisdr.com</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="active nav-link" href="https://github.com/HB9IIU" target="_blank">gituHub</a>
+                            </li>
+                        </ul>
                     </div>
+                    <h6 id="version" style="color:#7f7f7f">Beta 1.0</h6>
                 </div>
-                <!-- 80 m -->
-                <div class="row align-items-center g-0">
-                    <div class="col-md-3 text-end">
-                        <p style="font-weight:700;font-size:18px;margin:0">80 m</p>
-                    </div>
-                    <div class="col-md-6 text-end" id="freq-80m">
-                        <p style="margin:0">3.570.000 Hz</p>
-                    </div>
-                    <div class="col-md-3 text-end"></div>
-                </div>
-                <!-- 40 m -->
-                <div class="row align-items-center g-0">
-                    <div class="col-md-3 text-end">
-                        <p style="font-weight:700;font-size:18px;margin:0">40 m</p>
-                    </div>
-                    <div class="col-md-6 text-end" id="freq-40m">
-                        <p style="margin:0">7.040.000 Hz</p>
-                    </div>
-                    <div class="col-md-3 text-end"></div>
-                </div>
-                <!-- 30 m -->
-                <div class="row align-items-center g-0">
-                    <div class="col-md-3 text-end">
-                        <p style="font-weight:700;font-size:18px;margin:0">30 m</p>
-                    </div>
-                    <div class="col-md-6 text-end" id="freq-30m">
-                        <p style="margin:0">10.140.100 Hz</p>
-                    </div>
-                    <div class="col-md-3 text-end"></div>
-                </div>
-                <!-- 20 m -->
-                <div class="row align-items-center g-0">
-                    <div class="col-md-3 text-end">
-                        <p style="font-weight:700;font-size:18px;margin:0">20 m</p>
-                    </div>
-                    <div class="col-md-6 text-end" id="freq-20m">
-                        <p style="margin:0">14.097.000 Hz</p>
-                    </div>
-                    <div class="col-md-3 text-end"></div>
-                </div>
-                <!-- 17 m -->
-                <div class="row align-items-center g-0">
-                    <div class="col-md-3 text-end">
-                        <p style="font-weight:700;font-size:18px;margin:0">17 m</p>
-                    </div>
-                    <div class="col-md-6 text-end" id="freq-17m">
-                        <p style="margin:0">18.106.000 Hz</p>
-                    </div>
-                    <div class="col-md-3 text-end"></div>
-                </div>
-                <!-- 15 m -->
-                <div class="row align-items-center g-0">
-                    <div class="col-md-3 text-end">
-                        <p style="font-weight:700;font-size:18px;margin:0">15 m</p>
-                    </div>
-                    <div class="col-md-6 text-end" id="freq-15m">
-                        <p style="margin:0">21.096.000 Hz</p>
-                    </div>
-                    <div class="col-md-3 text-end"></div>
-                </div>
-                <!-- 12 m -->
-                <div class="row align-items-center g-0">
-                    <div class="col-md-3 text-end">
-                        <p style="font-weight:700;font-size:18px;margin:0">12 m</p>
-                    </div>
-                    <div class="col-md-6 text-end" id="freq-12m">
-                        <p style="margin:0">24.926.000 Hz</p>
-                    </div>
-                    <div class="col-md-3 text-end"></div>
-                </div>
-                <!-- 10 m -->
-                <div class="row align-items-center g-0">
-                    <div class="col-md-3 text-end">
-                        <p style="font-weight:700;font-size:18px;margin:0">10 m</p>
-                    </div>
-                    <div class="col-md-6 text-end" id="freq-10m">
-                        <p style="margin:0">28.126.000 Hz</p>
-                    </div>
-                    <div class="col-md-3 text-end"></div>
-                </div>
-                <!-- 6 m -->
-                <div class="row align-items-center g-0">
-                    <div class="col-md-3 text-end">
-                        <p style="font-weight:700;font-size:18px;margin:0">6 m</p>
-                    </div>
-                    <div class="col-md-6 text-end" id="freq-6m">
-                        <p style="margin:0">50.293.000 Hz</p>
-                    </div>
-                    <div class="col-md-3 text-end"></div>
-                </div>
-            </div>
-            <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4" data-pg-collapsed>
-                <h4>TX Schedule</h4>
-                <div class="row align-items-center g-0 mb-1">
-                    <div class="col-md-2 d-flex justify-content-center align-items-center">
-                        <input class="form-check-input" id="schedule1" name="txInterval"
-                               onchange='sendScheduleState("schedule1")' type="radio">
-                    </div>
-                    <div class="col-md-10 text-start">
-                        <label class="form-check-label" for="schedule1" style="margin:0">TX every 2 minutes</label>
-                    </div>
-                </div>
-                <div class="row align-items-center g-0 mb-1">
-                    <div class="col-md-2 d-flex justify-content-center align-items-center">
-                        <input class="form-check-input" id="schedule2" name="txInterval"
-                               onchange='sendScheduleState("schedule2")' type="radio">
-                    </div>
-                    <div class="col-md-10 text-start">
-                        <label class="form-check-label" for="schedule2" style="margin:0">TX every 4 minutes</label>
-                    </div>
-                </div>
-                <div class="row align-items-center g-0 mb-1">
-                    <div class="col-md-2 d-flex justify-content-center align-items-center">
-                        <input class="form-check-input" id="schedule3" name="txInterval"
-                               onchange='sendScheduleState("schedule3")' type="radio">
-                    </div>
-                    <div class="col-md-10 text-start">
-                        <label class="form-check-label" for="schedule3" style="margin:0">TX every 6 minutes</label>
-                    </div>
-                </div>
-                <div class="row align-items-center g-0 mb-1">
-                    <div class="col-md-2 d-flex justify-content-center align-items-center">
-                        <input class="form-check-input" id="schedule4" name="txInterval"
-                               onchange='sendScheduleState("schedule4")' type="radio">
-                    </div>
-                    <div class="col-md-10 text-start">
-                        <label class="form-check-label" for="schedule4" style="margin:0">TX every 8 minutes</label>
-                    </div>
-                </div>
-                <div class="row align-items-center g-0 mb-2">
-                    <div class="col-md-2 d-flex justify-content-center align-items-center">
-                        <input class="form-check-input" id="schedule5" name="txInterval"
-                               onchange='sendScheduleState("schedule5")' type="radio">
-                    </div>
-                    <div class="col-md-10 text-start">
-                        <label class="form-check-label" for="schedule5" style="margin:0">TX every 10 minutes</label>
-                    </div>
-                </div>
-                <div class="row align-items-center g-0">
-                    <div class="text-center" id="WSPRclock" style="text-align:center;margin-top:10px"></div>
-                </div>
-            </div>
-            <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4" data-pg-collapsed>
+            </nav>
+        </header>
+        <main class="flex-shrink-0">
+            <div class="container">
                 <div class="row">
-                    <div class="col-md-6">
-                        <h4>Callsign</h4>
-                        <div class="mb-3">
-                            <input class="form-control" id="callsign" maxlength="6" oninput="validateCallsign()"
-                                   style="text-align: center;">
+                    <div class="col-4 pe-auto">
+                        <div class="row g-0">
+                            <div class="col-md-12 text-end">
+                                <h4 style="text-align:left">TX Bands&nbsp;<span class="fs-6">Band Start Frequencies</span></h4>
+                            </div>
+                        </div>
+                        <!-- Band Rows -->
+                        <!-- Repeat for each band -->
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-80m">
+                                        <input class="form-check-input me-2" id="chk-80m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-80m">
+                                            <label class="form-check-label me-2" for="chk-80m">
+                                                <strong id="label-80m">80 m</strong>
+                                            </label>
+                                            <div id="freq-80m-cb">3.570.000 Hz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-40m">
+                                        <input class="form-check-input me-2" id="chk-40m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-40m">
+                                            <label class="form-check-label me-2" for="chk-40m">
+                                                <strong id="label-40m">40 m</strong>
+                                            </label>
+                                            <div id="freq-40m-cb">7.040.000 Hz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Continue for each band with same structure -->
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-30m">
+                                        <input class="form-check-input me-2" id="chk-30m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-30m">
+                                            <label class="form-check-label me-2" for="chk-30m">
+                                                <strong id="label-30m">30 m</strong>
+                                            </label>
+                                            <div id="freq-30m-cb">10.140.100 Hz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-20m">
+                                        <input class="form-check-input me-2" id="chk-20m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-20m">
+                                            <label class="form-check-label me-2" for="chk-20m">
+                                                <strong id="label-20m">20 m</strong>
+                                            </label>
+                                            <div id="freq-20m-cb">14.097.000 Hz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-17m">
+                                        <input class="form-check-input me-2" id="chk-17m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-17m">
+                                            <label class="form-check-label me-2" for="chk-17m">
+                                                <strong id="label-17m">17 m</strong>
+                                            </label>
+                                            <div id="freq-17m-cb">18.106.000 Hz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-15m">
+                                        <input class="form-check-input me-2" id="chk-15m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-15m">
+                                            <label class="form-check-label me-2" for="chk-15m">
+                                                <strong id="label-15m">15 m</strong>
+                                            </label>
+                                            <div id="freq-15m-cb">21.096.000 Hz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-12m">
+                                        <input class="form-check-input me-2" id="chk-12m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-12m">
+                                            <label class="form-check-label me-2" for="chk-12m">
+                                                <strong id="label-12m">12 m</strong>
+                                            </label>
+                                            <div id="freq-12m-cb">24.926.000 Hz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-10m">
+                                        <input class="form-check-input me-2" id="chk-10m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-10m">
+                                            <label class="form-check-label me-2" for="chk-10m">
+                                                <strong id="label-10m">10 m</strong>
+                                            </label>
+                                            <div id="freq-10m-cb">28.126.000 Hz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-6m">
+                                        <input class="form-check-input me-2" id="chk-6m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-6m">
+                                            <label class="form-check-label me-2" for="chk-6m">
+                                                <strong id="label-6m">6 m</strong>
+                                            </label>
+                                            <div id="freq-6m-cb">50.293.000 Hz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <h4>Locator</h4>
-                        <div class="mb-3">
-                            <input class="form-control" id="locator" maxlength="6" oninput="validateLocator()"
-                                   style="text-align: center;">
+                    <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4" data-pg-collapsed>
+                        <h4>TX Schedule</h4>
+                        <div class="row align-items-center g-0 mb-1">
+                            <div class="col-md-2 d-flex justify-content-center align-items-center">
+                                <input class="form-check-input" id="schedule1" name="txInterval" onchange='sendScheduleState("schedule1")' type="radio">
+                            </div>
+                            <div class="col-md-10 text-start">
+                                <label class="form-check-label" for="schedule1" style="margin:0">TX every 2 minutes</label>
+                            </div>
+                        </div>
+                        <div class="row align-items-center g-0 mb-1">
+                            <div class="col-md-2 d-flex justify-content-center align-items-center">
+                                <input class="form-check-input" id="schedule2" name="txInterval" onchange='sendScheduleState("schedule2")' type="radio">
+                            </div>
+                            <div class="col-md-10 text-start">
+                                <label class="form-check-label" for="schedule2" style="margin:0">TX every 4 minutes</label>
+                            </div>
+                        </div>
+                        <div class="row align-items-center g-0 mb-1">
+                            <div class="col-md-2 d-flex justify-content-center align-items-center">
+                                <input class="form-check-input" id="schedule3" name="txInterval" onchange='sendScheduleState("schedule3")' type="radio">
+                            </div>
+                            <div class="col-md-10 text-start">
+                                <label class="form-check-label" for="schedule3" style="margin:0">TX every 6 minutes</label>
+                            </div>
+                        </div>
+                        <div class="row align-items-center g-0 mb-1">
+                            <div class="col-md-2 d-flex justify-content-center align-items-center">
+                                <input class="form-check-input" id="schedule4" name="txInterval" onchange='sendScheduleState("schedule4")' type="radio">
+                            </div>
+                            <div class="col-md-10 text-start">
+                                <label class="form-check-label" for="schedule4" style="margin:0">TX every 8 minutes</label>
+                            </div>
+                        </div>
+                        <div class="row align-items-center g-0 mb-2">
+                            <div class="col-md-2 d-flex justify-content-center align-items-center">
+                                <input class="form-check-input" id="schedule5" name="txInterval" onchange='sendScheduleState("schedule5")' type="radio">
+                            </div>
+                            <div class="col-md-10 text-start">
+                                <label class="form-check-label" for="schedule5" style="margin:0">TX every 10 minutes</label>
+                            </div>
+                        </div>
+                        <div class="row align-items-center g-0">
+                            <div class="text-center" id="WSPRclock" style="text-align:center;margin-top:10px"></div>
                         </div>
                     </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6">
-                        <h4 style="text-align:center">&nbsp;Power (mW)</h4>
-                        <div class="mb-3 d-flex justify-content-center">
-                            <input class="form-control custom-input" id="power" maxlength="5" oninput="validatePower()"
-                                   style="text-align: center;">
+                    <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4" data-pg-collapsed>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h4>Callsign</h4>
+                                <div class="mb-3">
+                                    <input class="form-control" id="callsign" maxlength="6" oninput="validateCallsign()" style="text-align: center;">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h4>Locator</h4>
+                                <div class="mb-3">
+                                    <input class="form-control" id="locator" maxlength="6" oninput="validateLocator()" style="text-align: center;">
+                                </div>
+                            </div>
                         </div>
-                        <p id="powerdbm" style="text-align:center;margin-top:5px;font-style:italic;font-size:12px">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h4 style="text-align:center">&nbsp;Power (mW)</h4>
+                                <div class="mb-3 d-flex justify-content-center">
+                                    <input class="form-control custom-input" id="power" maxlength="5" oninput="validatePower()" style="text-align: center;">
+                                </div>
+                                <p id="powerdbm" style="text-align:center;margin-top:5px;font-style:italic;font-size:12px">
                             ..dBm</p>
-                    </div>
-                    <div class="col-md-6">
-                        <img class="img-fluid text-center" src="assets/wsprlogo.png" style="max-width:100%;height:auto">
-                    </div>
-                </div>
-                <div class="container mt-auto">
-                    <div class="row justify-content-center">
-                        <div class="col-12 col-md-auto d-flex flex-column align-items-center">
-                            <button class="btn btn-success custom-button mb-2" onclick="rebootESP32()" type="button">
-                                Reboot
-                            </button>
-                            <button class="btn btn-danger custom-button"
-                                    onclick="window.location.href='calibrate.html';" type="button">Calibrate VFO
-                            </button>
-                            <table class="table table-borderless table-sm text-center mt-4" style="margin-bottom:0">
-                                <tbody>
-                                <tr data-pg-collapsed style="line-height:1.5">
-                                    <td style="padding:0"><h3 id="UTCDigitalClock"
-                                                              style="font-family:'Share Tech Mono',monospace;font-size:27px;font-weight:700;text-align:right;margin:0;padding-right:15px">
+                            </div>
+                            <div class="col-md-6">
+                                <img class="img-fluid text-center" src="assets/wsprlogo.png" style="max-width:100%;height:auto">
+                            </div>
+                        </div>
+                        <div class="container mt-auto">
+                            <div class="row justify-content-center">
+                                <div class="col-12 col-md-auto d-flex flex-column align-items-center">
+                                    <button class="btn btn-success custom-button mb-2" onclick="rebootESP32()" type="button">
+                                        Reboot
+</button>
+                                    <button class="btn btn-danger custom-button" onclick="window.location.href='calibrate.html';" type="button">Calibrate VFO
+</button>
+                                    <table class="table table-borderless table-sm text-center mt-4" style="margin-bottom:0">
+                                        <tbody>
+                                            <tr data-pg-collapsed style="line-height:1.5">
+                                                <td style="padding:0"><h3 id="UTCDigitalClock" style="font-family:'Share Tech Mono',monospace;font-size:27px;font-weight:700;text-align:right;margin:0;padding-right:15px">
                                         00:00:00 </h3></td>
-                                    <th style="font-size:22px;text-align:left;padding:0;margin:0;vertical-align:middle">
-                                        UTC
-                                    </th>
-                                </tr>
-                                <tr data-pg-collapsed style="line-height:1.5">
-                                    <td style="padding:0"><h3 id="LocalDigitalClock"
-                                                              style="font-family:'Share Tech Mono',monospace;font-size:27px;font-weight:700;text-align:right;margin:0;line-height:1.5;padding-right:15px">
+                                                <th style="font-size:22px;text-align:left;padding:0;margin:0;vertical-align:middle">
+                                        UTC </th>
+                                            </tr>
+                                            <tr data-pg-collapsed style="line-height:1.5">
+                                                <td style="padding:0"><h3 id="LocalDigitalClock" style="font-family:'Share Tech Mono',monospace;font-size:27px;font-weight:700;text-align:right;margin:0;line-height:1.5;padding-right:15px">
                                         00:00:00 </h3></td>
-                                    <th style="font-size:22px;text-align:left;padding:0;margin:0;vertical-align:middle;line-height:1.5">
-                                        Local
-                                    </th>
-                                </tr>
-                                </tbody>
-                            </table>
+                                                <th style="font-size:22px;text-align:left;padding:0;margin:0;vertical-align:middle;line-height:1.5">
+                                        Local </th>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+                <div class="row" data-pg-collapsed>
+                    <h4 id="progressText">Waiting for next transmission slot</h4>
+                </div>
+                <div class="row progress-container" data-pg-collapsed id="greenProgressContainer">
+                    <div class="g-0 progress mx-auto">
+                        <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0" class="progress-bar bg-success progress-bar-striped" id="progressBar" role="progressbar" style="width:0%">
+                            <span id="progressLabel"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row progress-container" data-pg-collapsed id="redProgressContainer">
+                    <div class="g-0 progress mx-auto">
+                        <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0" class="progress-bar bg-danger progress-bar-striped" id="TXprogressBAR" role="progressbar" style="width:0%">
+                            <span id="TXProgressLabel"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row" data-pg-collapsed>
+                    <div class="container d-flex justify-content-center">
+                        <div id="map" style="margin-top:15px"></div>
+                    </div>
+                </div>
+                <div class="row" data-pg-collapsed>
+                    <div class="container d-flex justify-content-center">
+                        <div id="cesiumContainer"></div>
+                    </div>
+                </div>
+                <div id="alertPlaceholder"></div>
+                <div class="row" data-pg-collapsed>
+                    <div aria-label="Basic example" class="btn-group" role="group">
+                        <button class="btn btn-secondary" onclick="filterByBand(7)" type="button">40 m</button>
+                        <button class="btn btn-secondary" onclick="filterByBand(10)" type="button">30 m</button>
+                        <button class="btn btn-secondary" onclick="filterByBand(14)" type="button">20 m</button>
+                        <button class="btn btn-secondary" onclick="filterByBand(21)" type="button">15 m</button>
+                        <button class="btn btn-secondary" onclick="filterByBand(24)" type="button">12 m</button>
+                        <button class="btn btn-secondary" onclick="filterByBand(28)" type="button">10 m</button>
+                    </div>
+                    <div class="container mt-5">
+                        <div id="results"></div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-center mt-5" data-pg-collapsed id="loadingSpinner">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+        <footer class="footer mt-auto py-3 bg-light" data-pg-collapsed>
+            <div class="container"><span class="text-muted">HB9IIU May 2025</span>
+            </div>
+        </footer>
+        <div id="overlay">
+            <div id="overlay-content">
+                <div class="spinner"></div>
+                <div>Please wait, rebooting...</div>
             </div>
         </div>
-        <div class="row" data-pg-collapsed>
-            <h4 id="progressText">Waiting for next transmission slot</h4>
-        </div>
-        <div class="row progress-container" data-pg-collapsed id="greenProgressContainer">
-            <div class="g-0 progress mx-auto">
-                <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0"
-                     class="progress-bar bg-success progress-bar-striped" id="progressBar" role="progressbar"
-                     style="width:0%">
-                    <span id="progressLabel"></span>
+        <div aria-hidden="true" aria-labelledby="factoryResetModalLabel" class="modal fade" id="factoryResetModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header d-flex flex-column align-items-center">
+                        <h5 class="modal-title" id="factoryResetModalLabel">Factory Reset Confirmation</h5>
+                        <img alt="Logo" class="modal-logo mt-2" src="assets/warning.png">
+                        <button aria-label="Close" class="btn-close" data-bs-dismiss="modal" type="button"></button>
+                    </div>
+                    <div class="modal-body">
+                        By clicking Yes, the ESP32 will be reset to factory default settings, meaning that all configurations
+                        will be lost. A reconfiguration via AP (network: HB9IIU-WSPR-CONFIG, IP: 192.168.4.1) will be required.
+                        Do you want to proceed?
+</div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancel</button>
+                        <button class="btn btn-primary" id="confirmFactoryReset" type="button">Yes</button>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="row progress-container" data-pg-collapsed id="redProgressContainer">
-            <div class="g-0 progress mx-auto">
-                <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0"
-                     class="progress-bar bg-danger progress-bar-striped" id="TXprogressBAR" role="progressbar"
-                     style="width:0%">
-                    <span id="TXProgressLabel"></span>
-                </div>
-            </div>
-        </div>
-        <div class="row" data-pg-collapsed>
-            <div class="container d-flex justify-content-center">
-                <div id="map" style="margin-top:15px"></div>
-            </div>
-        </div>
-        <div class="row" data-pg-collapsed>
-            <div class="container d-flex justify-content-center">
-                <div id="cesiumContainer"></div>
-            </div>
-        </div>
-        <div id="alertPlaceholder"></div>
-        <div class="row" data-pg-collapsed>
-            <div aria-label="Basic example" class="btn-group" role="group">
-                <button class="btn btn-secondary" onclick="filterByBand(7)" type="button">40 m</button>
-                <button class="btn btn-secondary" onclick="filterByBand(10)" type="button">30 m</button>
-                <button class="btn btn-secondary" onclick="filterByBand(14)" type="button">20 m</button>
-                <button class="btn btn-secondary" onclick="filterByBand(21)" type="button">15 m</button>
-                <button class="btn btn-secondary" onclick="filterByBand(24)" type="button">12 m</button>
-                <button class="btn btn-secondary" onclick="filterByBand(28)" type="button">10 m</button>
-            </div>
-            <div class="container mt-5">
-                <div id="results"></div>
-            </div>
-        </div>
-        <div class="d-flex justify-content-center mt-5" data-pg-collapsed id="loadingSpinner">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-        </div>
-    </div>
-</main>
-<footer class="footer mt-auto py-3 bg-light" data-pg-collapsed>
-    <div class="container"><span class="text-muted">HB9IIU May 2025</span>
-    </div>
-</footer>
-<div id="overlay">
-    <div id="overlay-content">
-        <div class="spinner"></div>
-        <div>Please wait, rebooting...</div>
-    </div>
-</div>
-<div aria-hidden="true" aria-labelledby="factoryResetModalLabel" class="modal fade" id="factoryResetModal"
-     tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header d-flex flex-column align-items-center">
-                <h5 class="modal-title" id="factoryResetModalLabel">Factory Reset Confirmation</h5>
-                <img alt="Logo" class="modal-logo mt-2" src="assets/warning.png">
-                <button aria-label="Close" class="btn-close" data-bs-dismiss="modal" type="button"></button>
-            </div>
-            <div class="modal-body">
-                By clicking Yes, the ESP32 will be reset to factory default settings, meaning that all configurations
-                will be lost. A reconfiguration via AP (network: HB9IIU-WSPR-CONFIG, IP: 192.168.4.1) will be required.
-                Do you want to proceed?
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancel</button>
-                <button class="btn btn-primary" id="confirmFactoryReset" type="button">Yes</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div id="blockerOverlay" style="
+        <div id="blockerOverlay" style="
   position: fixed;
   top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(0, 0, 0, 0.75);
@@ -514,18 +384,112 @@
   font-size: 1.5em;
   text-align: center;
 ">
-    <div id="blockerMessage">Mode not supported.</div>
-</div>
+            <div id="blockerMessage">Mode not supported.</div>
+        </div>
+        <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script crossorigin="" src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/leaflet.geodesic"></script>
+        <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.114.0/Cesium.js"></script>
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script>let map, viewer, txSign = "NOCALL", HomeTXLat, HomeTXLon
+const bandIndexToId = {
+    0: "chk-80m",
+    1: "chk-40m",
+    2: "chk-30m",
+    3: "chk-20m",
+    4: "chk-17m",
+    5: "chk-15m",
+    6: "chk-12m",
+    7: "chk-10m",
+    8: "chk-6m"
+};
+
+// Uncheck all, then check enabled bands
+function updateBandCheckboxes(selectedBands) {
+    for (const idx in bandIndexToId) {
+        const checkbox = document.getElementById(bandIndexToId[idx]);
+        if (checkbox) checkbox.checked = false;
+    }
+
+    selectedBands.forEach(idx => {
+        const checkboxId = bandIndexToId[idx];
+        const checkbox = document.getElementById(checkboxId);
+        if (checkbox) checkbox.checked = true;
+    });
+}
+
+// Fetch selected bands from ESP32
+function fetchSelectedBands() {
+    fetch("/getSelectedBands")
+        .then(res => res.json())
+        .then(data => {
+            if (data.selectedBands) {
+                updateBandCheckboxes(data.selectedBands);
+
+            }
+        })
+        .catch(err => {
+            console.error("❌ Failed to fetch selected bands:", err);
+        });
+}
 
 
-<script crossorigin="anonymous"
-        src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-<script crossorigin="" src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet.geodesic"></script>
-<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.114.0/Cesium.js"></script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>let map, viewer, txSign = "NOCALL", HomeTXLat, HomeTXLon
+function collectSelectedBands() {
+    const selected = [];
+
+    for (const idx in bandIndexToId) {
+        const checkbox = document.getElementById(bandIndexToId[idx]);
+        if (checkbox && checkbox.checked) {
+            selected.push(parseInt(idx));
+        }
+    }
+
+    return selected;
+}
+
+function sendUpdatedBands() {
+    const selectedBands = collectSelectedBands();
+    const bandString = selectedBands.join(",");
+
+    fetch("/updateSelectedBands", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: "bands=" + encodeURIComponent(bandString)
+    })
+        .then(res => res.text())
+        .then(msg => {
+            console.log("✅ Bands updated:", msg);
+        })
+        .catch(err => {
+            console.error("❌ Failed to update bands:", err);
+        });
+}
+
+// Attach change event to all checkboxes
+
+
+        /*
+function updateBandCheckboxDisplay(selectedBands) {
+    const allBands = ["80m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m"];
+    allBands.forEach(band => {
+        const freqDiv = document.getElementById("freq-" + band + "-cb");
+        if (freqDiv) {
+            if (selectedBands.includes(band)) {
+                freqDiv.classList.remove("text-danger");
+                freqDiv.classList.add("text-success");
+            } else {
+                freqDiv.classList.remove("text-success");
+                freqDiv.classList.add("text-danger");
+            }
+        }
+    });
+}
+
+*/
+
 
 function initializeCesium(e) {
     Cesium.Ion.defaultAccessToken = e, viewer = new Cesium.Viewer("cesiumContainer", {
@@ -553,72 +517,56 @@ function sendPower() {
     var e = document.getElementById("power").value, t = new XMLHttpRequest;
     t.open("GET", "/updatePower?power=" + e, !0), t.send()
 }
+        function highlightBandSelection(frequencyHz, mode) {
+            const bandMap = {
+                3570000: "80m",
+                7040000: "40m",
+                10140100: "30m",
+                14097000: "20m",
+                18106000: "17m",
+                21096000: "15m",
+                24926000: "12m",
+                28126000: "10m",
+                50293000: "6m"
+            };
 
-function highlightBandSelection(frequencyHz, mode) {
-   // console.log(`📡 highlightBandSelection called with frequency: ${frequencyHz} Hz, mode: ${mode}`);
-
-    // Exact frequency-to-band ID mapping in Hz (matches WSPRbandStart[])
-    const bandMap = {
-        3570000: "freq-80m",
-        7040000: "freq-40m",
-        10140100: "freq-30m",
-        14097000: "freq-20m",
-        18106000: "freq-17m",
-        21096000: "freq-15m",
-        24926000: "freq-12m",
-        28126000: "freq-10m"
-    };
-
-
-    const parsedFreq = parseInt(frequencyHz); // Ensure it's an integer in Hz
-    //console.log(`🔍 Parsed frequency for lookup: ${parsedFreq} Hz`);
-
-    // Try exact match
-    const matchedKey = Object.keys(bandMap).find(key => parseInt(key) === parsedFreq);
-    const elementId = bandMap[matchedKey];
-
-    //console.log(`🔗 Matched key: ${matchedKey || "none"}, element ID: ${elementId || "none"}`);
-
-    // Remove highlights from all bands
-    Object.values(bandMap).forEach(id => {
-        const el = document.getElementById(id);
-        const wrapper = el?.parentElement;
-
-        if (el) {
-            el.classList.remove("highlight_RX", "highlight_TX");
-            //console.log(`❌ Removed highlight from: ${id}`);
-        }
-        if (wrapper) {
-            wrapper.classList.remove("freq-div-highlight-RX", "freq-div-highlight-TX");
-        }
-    });
-
-    // Apply highlight if match found
-    if (elementId) {
-        const el = document.getElementById(elementId);
-        const wrapper = el?.parentElement;
-
-        if (el) {
-            if (mode === "waiting") {
-                el.classList.add("highlight_RX");
-                // console.log(`✅ Applied RX highlight to: ${elementId}`);
-            } else if (mode === "transmitting") {
-                el.classList.add("highlight_TX");
-                // console.log(`✅ Applied TX highlight to: ${elementId}`);
+            const bandKey = bandMap[parseInt(frequencyHz)];
+            if (!bandKey) {
+                console.warn("No match for frequency:", frequencyHz);
+                return;
             }
-        }
 
-        if (wrapper) {
-            if (mode === "waiting") {
-                wrapper.classList.add("freq-div-highlight-RX");
-            } else if (mode === "transmitting") {
-                wrapper.classList.add("freq-div-highlight-TX");
-            }
+            const ids = {
+                left: "freq-" + bandKey,
+                right: "freq-" + bandKey + "-cb"
+            };
+
+            // Clear previous highlights on both columns
+            Object.values(bandMap).forEach(b => {
+                const left = document.getElementById("freq-" + b);
+                const right = document.getElementById("freq-" + b + "-cb");
+                left?.classList.remove("highlight_RX", "highlight_TX");
+                right?.classList.remove("highlight_RX", "highlight_TX");
+                left?.parentElement?.classList.remove("freq-div-highlight-RX", "freq-div-highlight-TX");
+                right?.parentElement?.classList.remove("freq-div-highlight-RX", "freq-div-highlight-TX");
+            });
+
+            // Apply new highlight
+            ["left", "right"].forEach(side => {
+                const el = document.getElementById(ids[side]);
+                const wrapper = el?.parentElement;
+
+                if (el) {
+                    if (mode === "waiting") el.classList.add("highlight_RX");
+                    else if (mode === "transmitting") el.classList.add("highlight_TX");
+                }
+
+                if (wrapper) {
+                    if (mode === "waiting") wrapper.classList.add("freq-div-highlight-RX");
+                    else if (mode === "transmitting") wrapper.classList.add("freq-div-highlight-TX");
+                }
+            });
         }
-    } else {
-        console.warn(`⚠️ No matching band found for frequency: ${parsedFreq} Hz`);
-    }
-}
 
 
 function formatTimeForProgressBarLabel(seconds) {
@@ -669,7 +617,7 @@ function updateProgressBar() {
                 txProgressBar.setAttribute("aria-valuenow", n);
                 txProgressLabel.textContent = formatTimeForProgressBarLabel(n);
                 progressText.textContent = "Transmitting";
-                 highlightBandSelection(o, "transmitting");
+                highlightBandSelection(o, "transmitting");
 
 
                 greenProgressContainer.style.display = "none";
@@ -728,19 +676,40 @@ function pollModeAndReload() {
             });
     }, 3000); // ⏱️ Every 3 seconds
 }
+        async function fetchData() {
+            console.log("txSign:", txSign);
 
+            const query = `
+        SELECT * FROM wspr.rx
+        WHERE time > subtractHours(now(), 24)
+        AND tx_sign = '${txSign}'
+        ORDER BY time DESC
+        LIMIT 2000 FORMAT JSON
+    `;
+            const url = `https://db1.wspr.live:443/?query=${encodeURIComponent(query)}`;
 
-function fetchData() {
-    console.log("txSign:", txSign);
-    const e = `https://db1.wspr.live:443/?query=${encodeURIComponent(`\n        SELECT * FROM wspr.rx\n        WHERE time > subtractHours(now(), 24)\n        AND tx_sign = '${txSign}'\n        ORDER BY time DESC\n        LIMIT 2000 FORMAT JSON\n    `)}`;
-    return console.log("Fetching data from URL:", e), document.getElementById("loadingSpinner").style.display = "block", fetch(e, {method: "GET"}).then((e => (console.log("Response status:", e.status), e.ok ? e.text().then((e => JSON.parse(e))) : e.text().then((e => {
-        throw console.error("Error response text:", e), new Error("Error fetching data: " + e)
-    }))))).then((e => (console.log("Parsed JSON data:", e), e))).catch((e => {
-        throw console.error("Error fetching data:", e), new Error("Error fetching data: " + e.message)
-    })).finally((() => {
-        document.getElementById("loadingSpinner").style.display = "none"
-    }))
-}
+            try {
+                console.log("Fetching data from:", url);
+                document.getElementById("loadingSpinner").style.display = "block";
+
+                const response = await fetch(url);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error("❌ Response error:", errorText);
+                    throw new Error("WSPR DB fetch failed");
+                }
+
+                const json = await response.json();
+                console.log("✅ Got JSON:", json);
+                return json;
+            } catch (err) {
+                console.error("❌ fetchData() error:", err);
+                throw err;
+            } finally {
+                document.getElementById("loadingSpinner").style.display = "none";
+            }
+        }
+
 
 function rebootESP32() {
     console.log("Reboot button clicked");
@@ -778,7 +747,6 @@ function retryPageReload() {
             });
     }, 3000); // ⏳ wait 3 seconds between retries
 }
-
 
 function displayTime() {
     const e = new Date, t = String(e.getHours()).padStart(2, "0"), n = String(e.getMinutes()).padStart(2, "0"),
@@ -988,7 +956,6 @@ function sortTable(e) {
     n.forEach(row => t.appendChild(row));
 }
 
-
 function showNoRecordsAlert() {
     var e = document.createElement("div");
     e.classList.add("alert", "alert-danger", "alert-dismissible", "fade", "show"), e.setAttribute("role", "alert"), e.innerHTML = '\n        No records for this band.\n        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>\n    ', document.getElementById("alertPlaceholder").appendChild(e), setTimeout((function () {
@@ -1119,11 +1086,24 @@ document.addEventListener("DOMContentLoaded", function () {
                     displayError(error);
                 });
         });
+    // Fetch selected bands from ESP32
+
+    fetchSelectedBands()
+
+});
+// ✅ Listen for checkbox changes
+["80m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m"].forEach(band => {
+    const checkbox = document.getElementById("chk-" + band);
+    if (checkbox) {
+        checkbox.addEventListener("change", () => {
+            sendUpdatedBands();
+
+        });
+    }
 });
 
-
 </script>
-<script>$(document).ready((function () {
+        <script>$(document).ready((function () {
     $("#WSPRclock").thooClock({
         size: 200,
         brandTextSizeFactor: 15,
@@ -1218,5 +1198,5 @@ document.addEventListener("DOMContentLoaded", function () {
         })), this
     }
 }(jQuery)</script>
-</body>
+    </body>
 </html>
