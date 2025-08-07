@@ -30,15 +30,22 @@ extern "C"
 // Wi-Fi credentials
 const char *ssid = "MESH";
 const char *password = "Nestle2010Nestle";
-const char* hostname = "wspr";
+const char *hostname = "wspr";
 
 // Replace with your static IP, gateway, and subnet if using static IP
 IPAddress local_IP(192, 168, 0, 206);
 IPAddress gateway(192, 168, 0, 1);
 IPAddress subnet(255, 255, 255, 0);
-IPAddress primaryDNS(8, 8, 8, 8);   // Google's DNS
-IPAddress secondaryDNS(1, 1, 1, 1); // Cloudflare DNS
 const int maxAttempts = 5;          // Maximum number of attempts to connect
+
+// Globals for DHCP-learned values
+IPAddress dhcp_ip;
+IPAddress dhcp_gateway;
+IPAddress dhcp_subnet;
+
+// Static DNS (hardcoded)
+IPAddress primaryDNS(8, 8, 8, 8);     // 🟢 Google DNS
+IPAddress secondaryDNS(1, 1, 1, 1);   // 🔵 Cloudflare DNS
 
 char call[8]; // USER CALLSIGN will be retrieved through preferences
 char loc[7];  // USER MAIDENHEAD GRID LOCATOR first 6 letters.
@@ -66,8 +73,8 @@ unsigned long long TX_referenceFrequ = 0;
 TaskHandle_t txCounterTaskHandle = NULL;
 unsigned long lastGPSretry = 0;
 const unsigned long timeReSynchInterval = 15 * 60 * 1000; // 15 minutes
-time_t lastManualSync = 0;                             // Last time we did a manual sync
-const time_t manualSyncInterval = 15 * 60;             // Sync every 15 minutes
+time_t lastManualSync = 0;                                // Last time we did a manual sync
+const time_t manualSyncInterval = 15 * 60;                // Sync every 15 minutes
 bool performCalibration = false;
 bool calibrationStarted = false;
 // Timing variables
@@ -114,8 +121,8 @@ void manuallyResyncTime();
 void initialTimeSyncViaSNTP();
 bool syncTimeFromGPS();
 String latLonToMaidenhead(float lat, float lon);
-void connectToWiFi();
-
+bool connectToWiFiWithStaticIP();
+bool connectToWiFi_DHCP_then_Static();
 // ################################################################################################
 // Prototype declarations
 // related to WSPR
@@ -147,7 +154,7 @@ void setFrequencyInMhz(float freqMHz);
 void setup()
 {
     Serial.begin(115200);
-    delay(4000);
+    delay(5000);
 
     // Initialize LittleFS
     if (!FILESYSTEM.begin(true))
@@ -157,8 +164,8 @@ void setup()
     }
     Serial.println("LittleFS mounted successfully");
     // Connect to Wi-Fi
-
-    connectToWiFi();
+    connectToWiFi_DHCP_then_Static();
+    // connectToWiFiWithStaticIP();
 
     // Retrieve user settings
     retrieveUserSettings();
@@ -235,8 +242,7 @@ void loop()
 
             // Begin transmission
             startTransmission();
-                        nextPosixTxTime += intervalBetweenTx;
-
+            nextPosixTxTime += intervalBetweenTx;
         }
 
         // 🔁 Try to resync time from GPS if not yet synced
@@ -671,32 +677,25 @@ void configure_web_server()
 
     // Root and static pages
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    request->send(FILESYSTEM, "/index.html", "text/html"); });
+              { request->send(FILESYSTEM, "/index.html", "text/html"); });
 
     server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    request->send(FILESYSTEM, "/index.html", "text/html"); });
+              { request->send(FILESYSTEM, "/index.html", "text/html"); });
 
     server.on("/calibrate.html", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    request->send(FILESYSTEM, "/calibrate.html", "text/html"); });
+              { request->send(FILESYSTEM, "/calibrate.html", "text/html"); });
 
     server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    request->send(FILESYSTEM, "/favicon.ico", "image/x-icon"); });
+              { request->send(FILESYSTEM, "/favicon.ico", "image/x-icon"); });
 
     // Static assets
     server.on("/assets/spectrum.jpg", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    request->send(FILESYSTEM, "/assets/spectrum.jpg", "image/jpeg"); });
+              { request->send(FILESYSTEM, "/assets/spectrum.jpg", "image/jpeg"); });
 
     server.on("/assets/wsprlogo.png", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    request->send(FILESYSTEM, "/assets/wsprlogo.png", "image/png"); });
+              { request->send(FILESYSTEM, "/assets/wsprlogo.png", "image/png"); });
     server.on("/assets/warning.png", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    request->send(FILESYSTEM, "/assets/warning.png", "image/png"); });
+              { request->send(FILESYSTEM, "/assets/warning.png", "image/png"); });
 
     server.on("/cesium.key", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(FILESYSTEM, "/cesium.key", "text/plain"); });
@@ -906,7 +905,6 @@ void manuallyResyncTime()
 {
     time_t now = time(nullptr);
 
-
     Serial.println("\n🌐 Manually triggering SNTP time sync...");
 
     sntp_setservername(0, "pool.ntp.org");
@@ -1095,14 +1093,14 @@ String latLonToMaidenhead(float lat, float lon)
     return String(maiden);
 }
 
-void connectToWiFi()
+bool connectToWiFiWithStaticIP()
 {
     int attempts = 0;
     bool connected = false;
 
-    // Retry loop to connect to Wi-Fi
     WiFi.setHostname(hostname); // Apply DHCP hostname
-        WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS);
+    WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS);
+    // Retry loop to connect to Wi-Fi
 
     while (attempts < maxAttempts && !connected)
     {
@@ -1130,9 +1128,12 @@ void connectToWiFi()
         }
     }
     // ✅ Start mDNS after Wi-Fi is connected
-    if (MDNS.begin(hostname)) {
+    if (MDNS.begin(hostname))
+    {
         Serial.println("✅ mDNS responder started: http://wspr.local");
-    } else {
+    }
+    else
+    {
         Serial.println("❌ Error starting mDNS");
     }
     // If not connected after maxAttempts, reset the ESP32
@@ -1141,76 +1142,80 @@ void connectToWiFi()
         Serial.println("Failed to connect after multiple attempts. Resetting ESP32...");
         ESP.restart();
     }
+    return connected;
 }
 
-void connectToWiFiNEW()
+bool connectToWiFi_DHCP_then_Static()
 {
-    int attempts = 0;
-    bool connected = false;
-    IPAddress dhcpIP;
-
-    // Retry loop to connect to Wi-Fi via DHCP
-    while (attempts < maxAttempts && !connected)
-    {
-        WiFi.begin(ssid, password);
-
-        Serial.print("Connecting to Wi-Fi (DHCP)...");
-        while (WiFi.status() != WL_CONNECTED)
-        {
-            delay(500);
-            Serial.print(".");
-        }
-
-        if (WiFi.status() == WL_CONNECTED)
-        {
-            connected = true;
-            Serial.println("\nConnected to Wi-Fi via DHCP");
-            dhcpIP = WiFi.localIP(); // Get the IP assigned by DHCP
-            Serial.print("IP Address: ");
-            Serial.println(dhcpIP);
-
-            // Retrieve and print gateway and subnet
-            gateway = WiFi.gatewayIP();
-            subnet = WiFi.subnetMask();
-
-            Serial.print("Gateway IP: ");
-            Serial.println(gateway);
-
-            Serial.print("Subnet Mask: ");
-            Serial.println(subnet);
-        }
-        else
-        {
-            Serial.println("\nFailed to connect to Wi-Fi, retrying...");
-            attempts++;
-            delay(1000); // Wait before retrying
-        }
-    }
-
-    // If not connected after maxAttempts, reset the ESP32
-    if (!connected)
-    {
-        Serial.println("Failed to connect after multiple attempts. Resetting ESP32...");
-        ESP.restart();
-    }
-
-    // Disconnect from Wi-Fi
-    WiFi.disconnect();
-    delay(500); // Wait for disconnect to complete
-
-    // Reconnect with the IP assigned by DHCP (using found gateway and subnet)
-    Serial.println("Reconnecting with DHCP IP...");
-    WiFi.config(dhcpIP, gateway, subnet); // Use the DHCP IP as static IP
+    Serial.println("📡 Connecting to Wi-Fi in DHCP mode...");
+    WiFi.mode(WIFI_STA);
+    WiFi.setHostname(hostname);  // Apply hostname before connecting
     WiFi.begin(ssid, password);
 
-    // Wait until connected with the DHCP-assigned IP
-    while (WiFi.status() != WL_CONNECTED)
+    unsigned long startAttemptTime = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000)
     {
         delay(500);
-        Serial.print(".");
+        Serial.print("⏳");
     }
 
-    Serial.println("\nReconnected to Wi-Fi with DHCP-assigned IP");
-    Serial.print("IP Address: ");
-    Serial.println(WiFi.localIP());
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.println("\n❌ DHCP connection failed. Check credentials or signal.");
+        return false;
+    }
+
+    // ✅ DHCP successful — gather config
+    dhcp_ip      = WiFi.localIP();
+    dhcp_gateway = WiFi.gatewayIP();
+    dhcp_subnet  = WiFi.subnetMask();
+
+    Serial.println("\n✅ Connected via DHCP:");
+    Serial.print("   📍 IP Address : "); Serial.println(dhcp_ip);
+    Serial.print("   🚪 Gateway    : "); Serial.println(dhcp_gateway);
+    Serial.print("   📦 Subnet     : "); Serial.println(dhcp_subnet);
+    Serial.print("   🟢 DNS 1 (DHCP): "); Serial.println(WiFi.dnsIP(0));
+    Serial.print("   🔵 DNS 2 (DHCP): "); Serial.println(WiFi.dnsIP(1));
+
+    // 🔌 Disconnect before static reconfig
+    Serial.println("🔌 Disconnecting to reconfigure static IP...");
+    WiFi.disconnect(true); // Clear old settings
+    delay(1000);
+
+    // 🛠️ Reconnect using static IP and custom DNS
+    Serial.println("🔁 Reconnecting with static IP and custom DNS...");
+    WiFi.config(dhcp_ip, dhcp_gateway, dhcp_subnet, primaryDNS, secondaryDNS);
+    WiFi.begin(ssid, password);
+
+    startAttemptTime = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000)
+    {
+        delay(500);
+        Serial.print("⏳");
+    }
+
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.println("\n❌ Static IP connection failed. Aborting.");
+        return false;
+    }
+
+    Serial.println("\n✅ Reconnected with static IP and DNS:");
+    Serial.print("   📍 IP Address : "); Serial.println(WiFi.localIP());
+    Serial.print("   🟢 DNS 1      : "); Serial.println(primaryDNS);
+    Serial.print("   🔵 DNS 2      : "); Serial.println(secondaryDNS);
+
+    // 🌐 Start mDNS
+    Serial.println("🌐 Starting mDNS service... ");
+    if (MDNS.begin(hostname))
+    {
+        Serial.printf("✅ mDNS ready at http://%s.local\n", hostname);
+        Serial.println();
+    }
+    else
+    {
+        Serial.println("❌ Failed to start mDNS");
+    }
+
+    return true;
 }
