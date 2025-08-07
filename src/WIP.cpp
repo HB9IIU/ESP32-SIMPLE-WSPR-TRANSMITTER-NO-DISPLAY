@@ -1290,14 +1290,30 @@ bool connectToWiFi_DHCP_then_Static()
 
 byte getNextEnabledBandIndex(byte currentIndex)
 {
+    Serial.println("\n🔄 [getNextEnabledBandIndex] Searching for next enabled band...");
+    Serial.printf("📍 Current index: %d (%s)\n", currentIndex, WSPRbandNames[currentIndex]);
+
     for (int offset = 1; offset <= numWSPRbands; offset++)
     {
         byte nextIndex = (currentIndex + offset) % numWSPRbands;
+        Serial.printf("  🔍 Checking index %d (%s)... ", nextIndex, WSPRbandNames[nextIndex]);
+
         if (wsprBandEnabled[nextIndex])
+        {
+            Serial.println("✅ ENABLED — selected!");
             return nextIndex;
+        }
+        else
+        {
+            Serial.println("❌ disabled");
+        }
     }
-    return currentIndex; // fallback: return same if none enabled (shouldn't happen)
+
+    Serial.println("⚠️ No enabled band found! Returning current index.");
+    return currentIndex; // fallback
 }
+
+
 byte getFirstEnabledBandIndex()
 {
     for (byte i = 0; i < numWSPRbands; i++)
