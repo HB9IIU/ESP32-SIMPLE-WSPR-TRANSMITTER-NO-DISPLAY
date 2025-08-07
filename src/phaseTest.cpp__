@@ -1,0 +1,93 @@
+#include <Wire.h>
+#include "si5351.h"
+
+// ========= USER CONFIG =========
+#define SI5351_SDA 25
+#define SI5351_SCL 26
+
+const uint64_t TARGET_FREQ_HZ    = 14100000ULL;  // 14.1 MHz
+const uint8_t  PLL_MULTIPLIER    = 50;           // Must be integer
+// =================================
+
+Si5351 si5351;
+
+// Convert degrees to phase register value (0–(PLL_MULTIPLIER - 1))
+uint8_t calculatePhaseOffset(uint16_t degrees, uint8_t divider) {
+  return (uint32_t)degrees * divider / 360;
+}
+
+void setup() {
+  Serial.begin(57600);
+  delay(200);
+
+  Wire.begin(SI5351_SDA, SI5351_SCL);
+
+  if (si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0)) {
+    Serial.println("✅ Si5351 module found.");
+  } else {
+    Serial.println("❌ Si5351 module NOT found. Check wiring!");
+    while (1);  // Stop here
+  }
+
+  // Frequency in centi-Hz
+  const uint64_t FREQ     = TARGET_FREQ_HZ * 100ULL;
+  const uint64_t PLL_FREQ = FREQ * PLL_MULTIPLIER;
+
+ 
+  // Set frequencies for CLK0 and CLK2
+  si5351.set_freq_manual(FREQ, PLL_FREQ, SI5351_CLK0);
+  si5351.set_freq_manual(FREQ, PLL_FREQ, SI5351_CLK2);
+
+  // Apply phase shift
+  si5351.set_phase(SI5351_CLK0, 0);
+  si5351.set_phase(SI5351_CLK2, 90);
+
+  // Reset PLL to apply phase alignment
+  si5351.pll_reset(SI5351_PLLA);
+
+  // Enable outputs
+  si5351.output_enable(SI5351_CLK0, 1);
+  si5351.output_enable(SI5351_CLK2, 1);
+
+  delay(500);
+  si5351.update_status();
+
+  // Summary
+  Serial.println("✅ Output configured:");
+  Serial.print("Frequency: ");
+  Serial.print((double)TARGET_FREQ_HZ / 1000000.0, 6);
+  Serial.println(" MHz");
+  Serial.print("PLL: ");
+  Serial.print((double)PLL_FREQ / 1000000.0, 3);
+  Serial.println(" MHz");
+ 
+
+  Serial.println("Initial PLL status:");
+  Serial.print("SYS_INIT: ");
+  Serial.print(si5351.dev_status.SYS_INIT);
+  Serial.print("  LOL_A: ");
+  Serial.print(si5351.dev_status.LOL_A);
+  Serial.print("  LOL_B: ");
+  Serial.print(si5351.dev_status.LOL_B);
+  Serial.print("  LOS: ");
+  Serial.print(si5351.dev_status.LOS);
+  Serial.print("  REVID: ");
+  Serial.println(si5351.dev_status.REVID);
+}
+
+void loop() {
+  si5351.update_status();
+  Serial.println("PLL status update:");
+  Serial.print("SYS_INIT: ");
+  Serial.print(si5351.dev_status.SYS_INIT);
+  Serial.print("  LOL_A: ");
+  Serial.print(si5351.dev_status.LOL_A);
+  Serial.print("  LOL_B: ");
+  Serial.print(si5351.dev_status.LOL_B);
+  Serial.print("  LOS: ");
+  Serial.print(si5351.dev_status.LOS);
+  Serial.print("  REVID: ");
+  Serial.println(si5351.dev_status.REVID);
+
+  delay(10000);
+}
