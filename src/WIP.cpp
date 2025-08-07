@@ -80,7 +80,7 @@ time_t currentRemainingSeconds;
 time_t intervalBetweenTx;
 
 int modeOfOperation = 2;    // inherited from MLA toolbox
-byte selectedBandIndex = 7; // inherited from MLA toolbox
+byte selectedBandIndex = 3; // inherited from MLA toolbox
 unsigned long now;
 // TX status
 bool tx_is_ON = false;
