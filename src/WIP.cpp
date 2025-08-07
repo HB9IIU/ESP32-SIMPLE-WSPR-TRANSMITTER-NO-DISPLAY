@@ -1287,12 +1287,32 @@ bool connectToWiFi_DHCP_then_Static()
 
     return true;
 }
-
 byte getNextEnabledBandIndex(byte currentIndex)
 {
     Serial.println("\n🔄 [getNextEnabledBandIndex] Searching for next enabled band...");
     Serial.printf("📍 Current index: %d (%s)\n", currentIndex, WSPRbandNames[currentIndex]);
 
+    // Count how many bands are enabled
+    int enabledCount = 0;
+    for (int i = 0; i < numWSPRbands; i++)
+    {
+        if (wsprBandEnabled[i])
+            enabledCount++;
+    }
+
+    // Handle degenerate case
+    if (enabledCount == 0)
+    {
+        Serial.println("❌ No enabled bands! Returning current index.");
+        return currentIndex;
+    }
+    if (enabledCount == 1)
+    {
+        Serial.println("🔂 Only one band enabled — no hopping.");
+        return currentIndex;
+    }
+
+    // Normal rotation
     for (int offset = 1; offset <= numWSPRbands; offset++)
     {
         byte nextIndex = (currentIndex + offset) % numWSPRbands;
@@ -1309,10 +1329,9 @@ byte getNextEnabledBandIndex(byte currentIndex)
         }
     }
 
-    Serial.println("⚠️ No enabled band found! Returning current index.");
-    return currentIndex; // fallback
+    Serial.println("⚠️ No other enabled band found. Staying on current.");
+    return currentIndex;
 }
-
 
 byte getFirstEnabledBandIndex()
 {
