@@ -193,7 +193,7 @@ void loop()
 {
 
     // If interrupted, skip TX
-    if (!interruptWSPRcurrentTX)
+    if (!performCalibration)
     {
         // First-time initialization
         if (isFirstIteration)
@@ -245,7 +245,7 @@ void loop()
         }
 
         // Break the loop if time is up or interrupted
-        if (!interruptWSPRcurrentTX)
+        if (!performCalibration)
         {
 
             // Begin transmission
@@ -587,7 +587,7 @@ void retrieveUserSettings()
     if (storedCall.isEmpty())
     {
         Serial.println("⚠️ Callsign not found! Setting default to 'HB9IIU' 🆕");
-        storedCall = "HB9IIU";
+        storedCall = "NOCALL";
         preferences.putString("callsign", storedCall);
     }
     else
@@ -778,7 +778,7 @@ void configure_web_server()
     serializeJson(doc, json);
     request->send(200, "application/json", json);
 
-    Serial.println("📤 Sent selected band indices to client.");
+    //Serial.println("📤 Sent selected band indices to client.");
 });
    
    // 🔄 HTTP Endpoint: Update selected WSPR bands from client
@@ -821,22 +821,30 @@ server.on("/updateSelectedBands", HTTP_POST, [](AsyncWebServerRequest *request){
    
    
               // 🔧 Settings and data endpoints
-    server.on("/getAllSettings", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    preferences.begin("settings", true);
+   server.on("/getAllSettings", HTTP_GET, [](AsyncWebServerRequest *request)
+{
     StaticJsonDocument<256> doc;
     doc["version"] = "Ver. " + String(VERSION);
-    doc["callsign"] = preferences.getString("callsign", "");
-    doc["locator"] = preferences.getString("locator", "");
-    doc["power"] = preferences.getUInt("power", 24);
+    doc["callsign"] = String(call);         // from global char array
+    doc["locator"] = String(loc);           // from global char array
+    doc["power"] = power_mW;                // from global variable
     doc["TX_referenceFrequ"] = TX_referenceFrequ;
     doc["WSPR_TX_operatingFrequ"] = WSPR_TX_operatingFrequ;
-    doc["scheduleState"] = preferences.getString("scheduleState", "schedule1");
-    preferences.end();
+
+    // Determine scheduleState from intervalBetweenTx
+    String scheduleState = "schedule1"; // default
+    if (intervalBetweenTx == 2 * 60) scheduleState = "schedule1";
+    else if (intervalBetweenTx == 4 * 60) scheduleState = "schedule2";
+    else if (intervalBetweenTx == 6 * 60) scheduleState = "schedule3";
+    else if (intervalBetweenTx == 8 * 60) scheduleState = "schedule4";
+    else if (intervalBetweenTx == 10 * 60) scheduleState = "schedule5";
+
+    doc["scheduleState"] = scheduleState;
 
     String json;
     serializeJson(doc, json);
-    request->send(200, "application/json", json); });
+    request->send(200, "application/json", json);
+});
 
     server.on("/getLocator", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -909,29 +917,37 @@ server.on("/updateSelectedBands", HTTP_POST, [](AsyncWebServerRequest *request){
       Serial.printf("⚡ Power set to %s mW\n", power.c_str());
     }
     request->send(200, "text/plain", "Power updated"); });
+server.on("/updateScheduleState", HTTP_GET, [](AsyncWebServerRequest *request)
+{
+  if (request->hasParam("id")) {
+    String scheduleState = request->getParam("id")->value();
 
-    server.on("/updateScheduleState", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    if (request->hasParam("id")) {
-      String scheduleState = request->getParam("id")->value();
-      preferences.begin("settings", false);
-      preferences.putString("scheduleState", scheduleState);
-      preferences.end();
+    // Print old interval before updating
+Serial.println("⚠️\n User selected new schedule");
+    Serial.printf("ℹ️ Previous schedule interval: %d minutes\n", intervalBetweenTx / 60);
 
-      if (scheduleState == "schedule1") intervalBetweenTx = 2 * 60;
-      else if (scheduleState == "schedule2") intervalBetweenTx = 4 * 60;
-      else if (scheduleState == "schedule3") intervalBetweenTx = 6 * 60;
-      else if (scheduleState == "schedule4") intervalBetweenTx = 8 * 60;
-      else if (scheduleState == "schedule5") intervalBetweenTx = 10 * 60;
-      else intervalBetweenTx = 2 * 60;
+    preferences.begin("settings", false);
+    preferences.putString("scheduleState", scheduleState);
+    preferences.end();
 
-      Serial.printf("📅 New schedule selected: %s ➡️ Interval set to %d minutes\n", scheduleState.c_str(), intervalBetweenTx / 60);
-      isFirstIteration = true;
-      interruptWSPRcurrentTX = true;
-    } else {
-      Serial.println("⚠️ No schedule ID received!");
-    }
-    request->send(200, "text/plain", "OK"); });
+    // Update based on selected schedule
+    if (scheduleState == "schedule1") intervalBetweenTx = 2 * 60;
+    else if (scheduleState == "schedule2") intervalBetweenTx = 4 * 60;
+    else if (scheduleState == "schedule3") intervalBetweenTx = 6 * 60;
+    else if (scheduleState == "schedule4") intervalBetweenTx = 8 * 60;
+    else if (scheduleState == "schedule5") intervalBetweenTx = 10 * 60;
+    else intervalBetweenTx = 2 * 60;
+
+    Serial.printf(\n"📅 New schedule selected: %s ➡️ Interval set to %d minutes\n", scheduleState.c_str(), intervalBetweenTx / 60);
+
+    isFirstIteration = true;
+    interruptWSPRcurrentTX = true;
+  } else {
+    Serial.println("⚠️ No schedule ID received!");
+  }
+
+  request->send(200, "text/plain", "OK");
+});
 
     // 🛠️ Control and calibration
     server.on("/startCalibtation", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -1289,7 +1305,7 @@ bool connectToWiFi_DHCP_then_Static()
 }
 byte getNextEnabledBandIndex(byte currentIndex)
 {
-    Serial.println("\n🔄 [getNextEnabledBandIndex] Searching for next enabled band...");
+    Serial.println("\n🔄 Searching for next enabled band...");
     Serial.printf("📍 Current index: %d (%s)\n", currentIndex, WSPRbandNames[currentIndex]);
 
     // Count how many bands are enabled
@@ -1303,35 +1319,56 @@ byte getNextEnabledBandIndex(byte currentIndex)
     // Handle degenerate case
     if (enabledCount == 0)
     {
-        Serial.println("❌ No enabled bands! Returning current index.");
+        Serial.println("❌ No enabled bands! Staying on current.");
+        for (int i = 0; i < numWSPRbands; i++)
+        {
+            Serial.printf("   [%d] %-4s — ❌ DISABLED%s\n", i, WSPRbandNames[i],
+                          (i == currentIndex ? " 🎯 CURRENT" : ""));
+        }
         return currentIndex;
     }
+
     if (enabledCount == 1)
     {
         Serial.println("🔂 Only one band enabled — no hopping.");
+        for (int i = 0; i < numWSPRbands; i++)
+        {
+            const char *emoji = wsprBandEnabled[i] ? "✅ ENABLED " : "❌ DISABLED";
+            Serial.printf("   [%d] %-4s — %s%s\n", i, WSPRbandNames[i], emoji,
+                          (i == currentIndex ? " 🎯 CURRENT" : ""));
+        }
         return currentIndex;
     }
 
-    // Normal rotation
+    // Normal rotation to next enabled band
+    byte nextIndex = currentIndex;
     for (int offset = 1; offset <= numWSPRbands; offset++)
     {
-        byte nextIndex = (currentIndex + offset) % numWSPRbands;
-        Serial.printf("  🔍 Checking index %d (%s)... ", nextIndex, WSPRbandNames[nextIndex]);
-
-        if (wsprBandEnabled[nextIndex])
+        byte candidate = (currentIndex + offset) % numWSPRbands;
+        if (wsprBandEnabled[candidate])
         {
-            Serial.println("✅ ENABLED — selected!");
-            return nextIndex;
-        }
-        else
-        {
-            Serial.println("❌ disabled");
+            nextIndex = candidate;
+            break;
         }
     }
 
-    Serial.println("⚠️ No other enabled band found. Staying on current.");
-    return currentIndex;
+    // 📋 Full table
+    Serial.println("\n📋 Band Status Table:");
+    for (int i = 0; i < numWSPRbands; i++)
+    {
+        const char *emoji = wsprBandEnabled[i] ? "✅ ENABLED " : "❌ DISABLED";
+        bool isCurrent = (i == currentIndex);
+        bool isNext = (i == nextIndex && i != currentIndex);
+
+        Serial.printf("   [%d] %-4s — %s%s%s\n", i, WSPRbandNames[i], emoji,
+                      isCurrent ? " <-- CURRENT" : "",
+                      isNext ? " --> NEXT" : "");
+    }
+
+    Serial.printf("\n✅ Switching to band index %d (%s)\n", nextIndex, WSPRbandNames[nextIndex]);
+    return nextIndex;
 }
+
 
 byte getFirstEnabledBandIndex()
 {
