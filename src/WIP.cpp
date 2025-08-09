@@ -472,8 +472,8 @@ unsigned long setRandomWSPRfrequency(byte bandIndex)
     unsigned long officialEnd = WSPRbandEnd[bandIndex];
 
     // Make sure there's space for the 6 Hz bandwidth of WSPR signal
-    unsigned long minF = officialStart + 5; // Should be 3, but add 5 for "safety"
-    unsigned long maxF = officialEnd - 5;   // Should be 3, but deduct 5 for "safety"
+    unsigned long minF = officialStart + 12; // Should be 3, but add 12 for "safety" margin
+    unsigned long maxF = officialEnd - 12;   // Should be 3, but deduct 12 for "safety" margin
 
     unsigned long freq = random(minF, maxF + 1); // inclusive range
 
