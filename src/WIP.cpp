@@ -32,16 +32,18 @@ const char *ssid = "MESH";
 const char *password = "Nestle2010Nestle";
 const char *hostname = "wspr";
 
+bool TEST=true;
+
 // Globals for DHCP-learned values
 IPAddress dhcp_ip;
 IPAddress dhcp_gateway;
 IPAddress dhcp_subnet;
 
 // Static DNS (hardcoded)
-IPAddress primaryDNS(8, 8, 8, 8);   // 🟢 Google DNS
 IPAddress secondaryDNS(1, 1, 1, 1); // 🔵 Cloudflare DNS
 
 const int maxWiFiConnectionAttempts = 5; // Maximum number of attempts to connect
+int totalSatellitesInView = 0;  // Global variable to hold total satellite count
 
 char call[8]; // USER CALLSIGN will be retrieved through preferences
 char loc[7];  // USER MAIDENHEAD GRID LOCATOR first 6 letters.
@@ -59,7 +61,6 @@ TinyGPSPlus gps;
 // Create a Preferences object for storing and retrieving key-value
 Preferences preferences;
 
-
 // Calibration variables
 int32_t cal_factor = 0;
 int calFrequencyInMhz = 14;
@@ -69,9 +70,8 @@ unsigned long long WSPR_TX_operatingFrequ;
 unsigned long long TX_referenceFrequ = 0;
 TaskHandle_t txCounterTaskHandle = NULL;
 unsigned long lastGPSretry = 0;
-const unsigned long timeReSynchInterval = 15 * 60 * 1000; // 15 minutes
+const unsigned long timeReSynchInterval = 5 * 60 * 1000; // 5 minutes
 time_t lastManualSync = 0;                                // Last time we did a manual sync
-const time_t manualSyncInterval = 15 * 60;                // Sync every 15 minutes
 bool performCalibration = false;
 bool calibrationStarted = false;
 // Timing variables
@@ -121,6 +121,7 @@ String latLonToMaidenhead(float lat, float lon);
 bool connectToWiFi_DHCP_then_Static();
 byte getNextEnabledBandIndex(byte currentIndex);
 byte getFirstEnabledBandIndex();
+int getSatellitesInView();
 // ################################################################################################
 // Prototype declarations
 // related to WSPR
@@ -181,108 +182,85 @@ void setup()
 
     configure_web_server();
 
-
-selectedBandIndex = getFirstEnabledBandIndex();
-Serial.printf("🎯 Starting on first enabled band: %s (%d)\n", WSPRbandNames[selectedBandIndex], selectedBandIndex);
-
-
-
+    selectedBandIndex = getFirstEnabledBandIndex();
+    Serial.printf("🎯 Starting on first enabled band: %s (%d)\n", WSPRbandNames[selectedBandIndex], selectedBandIndex);
 }
 //---------------------------------------------------------------------------------------------
+
+
 void loop()
 {
-
-    // If interrupted, skip TX
-    if (!performCalibration)
+    if (calibrationStarted)
     {
-        // First-time initialization
-        if (isFirstIteration)
-        {
-            Serial.println("\n🔁 First Loop Iteration: Determining next TX start time...");
-            initializeNextTransmissionTime();
-            isFirstIteration = false;
-            interruptWSPRcurrentTX = false;
-            TX_referenceFrequ = WSPRbandStart[selectedBandIndex]; // TEMPORARY
-        }
+        delay(5);
+        yield();
+        ;
+        return;
+    }
 
-        // Get current time once per loop
+    // First-time initialization
+    if (isFirstIteration)
+    {
+        Serial.println("\n🔁 First Loop Iteration: Determining next TX start time...");
+        initializeNextTransmissionTime();
+        isFirstIteration = false;
+        interruptWSPRcurrentTX = false;
+    }
+
+    displaySelectedBandInformation(selectedBandIndex);
+    TX_referenceFrequ = WSPRbandStart[selectedBandIndex];
+    // Get current time once per loop
+    currentEpochTime = time(nullptr);
+    Serial.print("\n🕒 Current time: ");
+    Serial.println(convertPosixToHHMMSS(currentEpochTime));
+    Serial.print("🕑 Next TX Time: ");
+    Serial.println(convertPosixToHHMMSS(nextPosixTxTime));
+
+    // Countdown loop until it's time to transmit or interrupted
+    unsigned long lastUpdate = 0;
+    while (true)
+    {
         currentEpochTime = time(nullptr);
+        currentRemainingSeconds = nextPosixTxTime - currentEpochTime;
 
-        Serial.print("\n🕒 Current time: ");
-        Serial.println(convertPosixToHHMMSS(currentEpochTime));
-        Serial.print("🕑 Next TX Time: ");
-        Serial.println(convertPosixToHHMMSS(nextPosixTxTime));
-
-        displaySelectedBandInformation(selectedBandIndex);
-
-        // Countdown loop until it's time to transmit or interrupted
-        unsigned long lastUpdate = 0;
-
-        while (true)
+        if (interruptWSPRcurrentTX || performCalibration)
         {
-            currentEpochTime = time(nullptr);
-            currentRemainingSeconds = nextPosixTxTime - currentEpochTime;
-
-            // Break the loop if time is up or interrupted
-            if (currentEpochTime >= nextPosixTxTime || interruptWSPRcurrentTX)
-                break;
-
-            // Update serial output every 1 second (not every loop)
-            if (millis() - lastUpdate >= 1000)
-            {
-                Serial.printf("\r⏳ TX starts in %ld s   ", currentRemainingSeconds);
-                lastUpdate = millis();
-            }
-
-            // Start warming up if close to TX time
-            if (currentRemainingSeconds <= 5 && !warmingup)
-            {
-                si5351_WarmingUp();
-            }
-
-            delay(5); // Small sleep to avoid tight spin
-            yield();  // Allow Wi-Fi + web tasks to run
+            Serial.println("⚠️ Ongoing waiting for next transmission interrupted");
+            return;
         }
 
         // Break the loop if time is up or interrupted
-        if (!performCalibration)
+        if (currentEpochTime >= nextPosixTxTime || interruptWSPRcurrentTX || performCalibration)
+            break;
+
+        // Update serial output every 1 second (not every loop)
+        if (millis() - lastUpdate >= 1000)
         {
-
-            // Begin transmission
-            startTransmission();
-            nextPosixTxTime += intervalBetweenTx;
+            Serial.printf("\r⏳ TX starts in %ld s   ", currentRemainingSeconds);
+            lastUpdate = millis();
         }
-
-        // 🔁 Try to resync time from GPS if not yet synced
-        unsigned long nowMs = millis();
-        unsigned long elapsed = nowMs - lastGPSretry;
-
-        long remaining = (long)timeReSynchInterval - (long)elapsed;
-
-        if (remaining > 0)
+        // Start warming up if close to TX time
+        if (currentRemainingSeconds <= 5 && !warmingup)
         {
-            unsigned int minutes = remaining / 60000;
-            unsigned int seconds = (remaining % 60000) / 1000;
-            Serial.printf("⏳ Time re-synch in %02u:%02u\n", minutes, seconds);
+            si5351_WarmingUp();
         }
-        else
-        {
-            Serial.println("⏳ Time synch is due now...");
-        }
-
-        if (elapsed > timeReSynchInterval)
-        {
-            lastGPSretry = nowMs;
-            if (syncTimeFromGPS())
-            {
-                Serial.println("✅ Recovered time from GPS.");
-            }
-            else
-            {
-                manuallyResyncTime();
-            }
-        }
+        delay(5); // Small sleep to avoid tight spin
+        yield();  // Allow Wi-Fi + web tasks to run
     }
+
+    // Break the loop if required
+    if (interruptWSPRcurrentTX || performCalibration)
+    {
+        Serial.println("⚠️ Next transmission cancelled");
+        return;
+    }
+
+    // Begin transmission
+    startTransmission();
+
+    nextPosixTxTime += intervalBetweenTx;
+    // 🔁 Switch to next enabled band for next TX
+    selectedBandIndex = getNextEnabledBandIndex(selectedBandIndex);
 
     if (performCalibration && !calibrationStarted)
     {
@@ -290,16 +268,51 @@ void loop()
         setFrequencyInMhz(calFrequencyInMhz);
         Serial.printf("📡 Frequency set to %s Hz and clock powered ON.\n", formatFrequencyWithDots(calFrequencyInMhz * 1e6).c_str());
     }
-    delay(5);
-    // 🔁 Switch to next enabled band for next TX
-selectedBandIndex = getNextEnabledBandIndex(selectedBandIndex);
-}
 
+    // 🔁 Try to resync time from GPS if not yet synced
+    unsigned long nowMs = millis();
+    unsigned long elapsed = nowMs - lastGPSretry;
+    Serial.println("");
+    long remaining = (long)timeReSynchInterval - (long)elapsed;
+    if (remaining >= 0)
+    {
+        unsigned int minutes = remaining / 60000;
+        unsigned int seconds = (remaining % 60000) / 1000;
+        Serial.printf("⏳ GPS or SNTP time re-synchronization in %u minutes and %02u seconds\n", minutes, seconds);
+    }
+    else
+    {
+        Serial.println("⏳  GPS or SNTP time re-synchronization is due now");
+    }
+
+    if (elapsed > timeReSynchInterval)
+    {
+        lastGPSretry = nowMs;
+        if (syncTimeFromGPS())
+        {
+            Serial.println("✅ Recovered time from GPS.");
+        }
+        else
+        {
+            initialTimeSyncViaSNTP();
+        }
+    }
+
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.println("Wi-Fi disconnected. Attempting to reconnect...");
+        WiFi.reconnect();
+    }
+
+    delay(5);
+}
 //---------------------------------------------------------------------------------------------
 
 void initSI5351()
 {
     const uint8_t SI5351_ADDRESS = 0x60;
+    Serial.println("");
+    Serial.println("📡 Initializing Si5351...");
 
     // 🔌 Start I²C bus at 400 kHz (fast mode) — reliable and quick on ESP32
     Wire.begin(SI5351_SDA, SI5351_SCL);
@@ -307,15 +320,16 @@ void initSI5351()
 
     // 🔍 Probe Si5351 I²C address to check if device is present
     Wire.beginTransmission(SI5351_ADDRESS);
+
     if (Wire.endTransmission() != 0)
     {
         Serial.println("❌ Si5351 not found at 0x60. Check wiring or power.");
-        return;
+        while (true)
+            ;
     }
 
     // ✅ Found and ready to initialize
     Serial.println("✅ Success! Si5351 module found!! 🎉");
-    Serial.println("📡 Initializing Si5351...");
 
     // ⚙️ Initialize Si5351 with 8pF crystal load (typical for cheap boards)
     si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0); // 0, 0 = use default XTAL + correction
@@ -350,6 +364,7 @@ void initSI5351()
     Serial.println();
     // switch OFF
     si5351.set_clock_pwr(SI5351_CLK0, 0);
+    Serial.println("");
 }
 void initializeNextTransmissionTime()
 {
@@ -383,9 +398,9 @@ void initializeNextTransmissionTime()
     }
 
     // ✅ Log the Result
-    Serial.print("📅 Next Transmission Time (POSIX): ");
-    Serial.println(nextPosixTxTime);
-    Serial.print("🕑 Next TX Time (Human Readable):  ");
+    //Serial.print("📅 Next Transmission Time (POSIX): ");
+    //Serial.println(nextPosixTxTime);
+    Serial.print("🕑 Next TX Time:  ");
     Serial.println(convertPosixToHHMMSS(nextPosixTxTime));
 }
 
@@ -431,7 +446,7 @@ void startTransmission()
     xTaskCreatePinnedToCore(
         TX_ON_counter_core0,  // Task function
         "TXCounterTask",      // Name of the task
-        1536,                 // Stack size in words
+        2048,                 // Stack size in words
         NULL,                 // Task input parameter
         1,                    // Priority of the task
         &txCounterTaskHandle, // Task handle
@@ -439,6 +454,7 @@ void startTransmission()
     );
 
     transmitWSPR();
+    warmingup = false;
     tx_is_ON = false;
     tx_ON_running_time_in_s = 0;
 
@@ -454,8 +470,10 @@ unsigned long setRandomWSPRfrequency(byte bandIndex)
 
     unsigned long officialStart = WSPRbandStart[bandIndex];
     unsigned long officialEnd = WSPRbandEnd[bandIndex];
-    unsigned long minF = officialStart + 3;
-    unsigned long maxF = officialEnd - 3;
+
+    // Make sure there's space for the 6 Hz bandwidth of WSPR signal
+    unsigned long minF = officialStart + 5; // Should be 3, but add 5 for "safety"
+    unsigned long maxF = officialEnd - 5;   // Should be 3, but deduct 5 for "safety"
 
     unsigned long freq = random(minF, maxF + 1); // inclusive range
 
@@ -502,18 +520,20 @@ void displaySelectedBandInformation(byte bandIndex)
     unsigned long maxF = officialEnd - 3;
 
     Serial.println();
-    Serial.println("📶 --- WSPR Transmission Setup --------------------------------------");
+    Serial.println(F("📶 --- WSPR Transmission Setup --------------------------------------"));
 
-    Serial.printf("🔹 Band:            %s\n", WSPRbandNames[bandIndex]);
-    Serial.printf("🔹 Sub-band:        %lu – %lu Hz\n", officialStart, officialEnd);
-    Serial.printf("🔹 Usable range:    %lu – %lu Hz (excludes ±3 Hz edges)\n", minF, maxF);
-    Serial.println("🔹 Bandwidth used:  ~6 Hz centered around selected frequency");
-    Serial.printf("🧾 Callsign:        %s\n", call);
-    Serial.printf("🌍 Locator:         %s\n", loc);
-    Serial.printf("⚡ Power:           %d mW → %d dBm\n", power_mW, dbm);
-    Serial.println("---------------------------------------------------------------------");
-    Serial.println();
+    Serial.printf("🔹 %-20s %s\n", "Band:", WSPRbandNames[bandIndex]);
+    Serial.printf("🔹 %-20s %lu – %lu Hz\n", "Sub-band:", officialStart, officialEnd);
+    Serial.printf("🔹 %-20s %lu – %lu Hz (excludes ±3 Hz edges)\n", "Usable range:", minF, maxF);
+    Serial.printf("🔹 %-20s ~6 Hz centered around selected frequency\n", "Bandwidth used:");
+    Serial.printf("🧾 %-20s %s\n", "Callsign:", call);
+    Serial.printf("🌍 %-20s %s\n", "Locator:", loc);
+    Serial.printf("⚡ %-20s %d mW → %d dBm\n", "Power:", power_mW, dbm);
+    Serial.printf("📅 %-20s %d minutes\n", "Scheduled Interval:", intervalBetweenTx / 60);
+
+    Serial.println(F("---------------------------------------------------------------------"));
 }
+
 void transmitWSPR()
 {
     uint8_t i;
@@ -533,11 +553,14 @@ void transmitWSPR()
     jtencode.wspr_encode(call, loc, dbm, tx_buffer);
 
     // 🚀 Transmission Start
-    Serial.println("📡 --- TX ON: Transmission Started ---");
+    Serial.println("\n--- TX ON: Transmission Started ---");
     // Record start time (both POSIX and millis)
     unsigned long txStartEpoch = time(nullptr);
     unsigned long txStartMillis = millis();
-
+    // Get current time once per loop
+    currentEpochTime = time(nullptr);
+    Serial.print("🕒 Current time: ");
+    Serial.println(convertPosixToHHMMSS(currentEpochTime));
     // 🔊 Transmit each WSPR symbol
 
     for (int i = 0; i < SYMBOL_COUNT; i++)
@@ -545,13 +568,27 @@ void transmitWSPR()
         uint64_t toneFreq = WSPR_TX_operatingFrequ + (tx_buffer[i] * TONE_SPACING);
         si5351.set_freq(toneFreq, SI5351_CLK0);
 
-        delay(WSPR_DELAY - 1); // 1 from experiments
-        yield();
+    int correction = 1;
+      if (TEST){
+    // Calculate percentage
+        float progress = ((float)(i + 1) / SYMBOL_COUNT) * 100.0;
+                // Print on the same line with percentage
+                Serial.printf("\r📡 Transmitting symbol %d of %d (%.0f%%)   ",
+                              i + 1, SYMBOL_COUNT, progress);
+                Serial.flush();
 
-        Serial.print(">");
-        if (interruptWSPRcurrentTX)
-            return; // goes back to main loop
+                if (interruptWSPRcurrentTX || performCalibration)
+                {
+                    Serial.println("\n⚠️ Ongoing transmission interrupted");
+                    return; // goes back to main loop
+                }
+correction=6;
+                yield();
+               }
+        delay(WSPR_DELAY - correction); // 5from experiments
     }
+    Serial.println(); // Move to a new line after completion
+
     // Record end time
     unsigned long txEndEpoch = time(nullptr);
     unsigned long txEndMillis = millis();
@@ -571,8 +608,7 @@ void transmitWSPR()
     // --- Delta with reference ---
     long delta = (long)txDuration - (long)WSPR_REFERENCE_DURATION_MS;
     Serial.printf("📏 Delta vs Reference (110646 ms): %+ld ms\n", delta);
-
-    warmingup = false;
+    delay(2000);
 }
 
 void retrieveUserSettings()
@@ -762,30 +798,34 @@ void configure_web_server()
     server.on("/cesium.key", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(FILESYSTEM, "/cesium.key", "text/plain"); });
 
-   // 🔄 HTTP Endpoint: Return list of selected WSPR bands as JSON
+    // 🔄 HTTP Endpoint: Return list of selected WSPR bands as JSON
 
-   server.on("/getSelectedBands", HTTP_GET, [](AsyncWebServerRequest *request) {
-    StaticJsonDocument<128> doc;
-    JsonArray arr = doc.createNestedArray("selectedBands");
+    server.on("/getSelectedBands", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+                  StaticJsonDocument<128> doc;
+                  JsonArray arr = doc.createNestedArray("selectedBands");
 
-    for (int i = 0; i < numWSPRbands; i++) {
-        if (wsprBandEnabled[i]) {
-            arr.add(i);
-        }
-    }
+                  for (int i = 0; i < numWSPRbands; i++)
+                  {
+                      if (wsprBandEnabled[i])
+                      {
+                          arr.add(i);
+                      }
+                  }
 
-    String json;
-    serializeJson(doc, json);
-    request->send(200, "application/json", json);
+                  String json;
+                  serializeJson(doc, json);
+                  request->send(200, "application/json", json);
 
-    //Serial.println("📤 Sent selected band indices to client.");
-});
-   
-   // 🔄 HTTP Endpoint: Update selected WSPR bands from client
-server.on("/updateSelectedBands", HTTP_POST, [](AsyncWebServerRequest *request){
+                  // Serial.println("📤 Sent selected band indices to client.");
+              });
+
+    // 🔄 HTTP Endpoint: Update selected WSPR bands from client
+    server.on("/updateSelectedBands", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
     if (request->hasParam("bands", true)) {
         String bandList = request->getParam("bands", true)->value();  // e.g., "0,2,5"
-        Serial.printf("📥 Received updated band list: \"%s\"\n", bandList.c_str());
+        Serial.printf("\n⚠️ User selected or de-selected bands, updating table");
 
         // Save to preferences
         preferences.begin("settings", false);
@@ -808,21 +848,25 @@ server.on("/updateSelectedBands", HTTP_POST, [](AsyncWebServerRequest *request){
             start = commaIndex + 1;
         }
 
+        // ---- Print full table in requested format ----
+        Serial.println(F("\n📋 Band Status Table:"));
+        for (int i = 0; i < numWSPRbands; i++) {
+            Serial.printf("   [%d] %-4s — %s %s\n",
+                          i,
+                          WSPRbandNames[i],  // assumes wsprBandName[] exists
+                          wsprBandEnabled[i] ? "✅" : "❌",
+                          wsprBandEnabled[i] ? "ENABLED" : "DISABLED");
+        }
+        Serial.println();
+
         request->send(200, "text/plain", "Bands updated");
-        isFirstIteration = true;
-        interruptWSPRcurrentTX = true;
     } else {
         request->send(400, "text/plain", "Missing bands parameter");
-    }
-});
+    } });
 
-   
-   
-   
-   
-              // 🔧 Settings and data endpoints
-   server.on("/getAllSettings", HTTP_GET, [](AsyncWebServerRequest *request)
-{
+    // 🔧 Settings and data endpoints
+    server.on("/getAllSettings", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
     StaticJsonDocument<256> doc;
     doc["version"] = "Ver. " + String(VERSION);
     doc["callsign"] = String(call);         // from global char array
@@ -843,8 +887,7 @@ server.on("/updateSelectedBands", HTTP_POST, [](AsyncWebServerRequest *request){
 
     String json;
     serializeJson(doc, json);
-    request->send(200, "application/json", json);
-});
+    request->send(200, "application/json", json); });
 
     server.on("/getLocator", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -888,24 +931,32 @@ server.on("/updateSelectedBands", HTTP_POST, [](AsyncWebServerRequest *request){
     server.on("/updateCallsign", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     if (request->hasParam("callsign")) {
-      String callsign = request->getParam("callsign")->value();
-      preferences.begin("settings", false);
-      preferences.putString("callsign", callsign);
-      preferences.end();
-      Serial.printf("📡 Callsign set to %s\n", callsign.c_str());
-    }
-    request->send(200, "text/plain", "Callsign updated"); });
+        String callsign = request->getParam("callsign")->value();
+        preferences.begin("settings", false);
+        preferences.putString("callsign", callsign);
+        preferences.end();
+        Serial.printf("📡 Callsign set to %s\n", callsign.c_str());
+
+        // Update the global variable
+        callsign.toCharArray(call, sizeof(call));
+    } });
 
     server.on("/updateLocator", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-    if (request->hasParam("locator")) {
-      String locator = request->getParam("locator")->value();
-      preferences.begin("settings", false);
-      preferences.putString("locator", locator);
-      preferences.end();
-      Serial.printf("📍 Locator set to %s\n", locator.c_str());
-    }
-    request->send(200, "text/plain", "Locator updated"); });
+  if (request->hasParam("locator")) {
+    String locator = request->getParam("locator")->value();
+
+    // Update the global Maidenhead locator (first 6 chars)
+    strncpy(loc, locator.c_str(), 6);
+    loc[6] = '\0';
+
+    preferences.begin("settings", false);
+    preferences.putString("locator", locator);
+    preferences.end();
+
+    Serial.printf("📍 Locator set to %s\n", loc);
+  }
+  request->send(200, "text/plain", "Locator updated"); });
 
     server.on("/updatePower", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -915,39 +966,49 @@ server.on("/updateSelectedBands", HTTP_POST, [](AsyncWebServerRequest *request){
       preferences.putUInt("power", power.toInt());
       preferences.end();
       Serial.printf("⚡ Power set to %s mW\n", power.c_str());
+         // Update global power_mW
+    power_mW = power.toInt();
+        dbm = round(10 * log10(power_mW));
     }
     request->send(200, "text/plain", "Power updated"); });
-server.on("/updateScheduleState", HTTP_GET, [](AsyncWebServerRequest *request)
-{
+    server.on("/updateScheduleState", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
   if (request->hasParam("id")) {
     String scheduleState = request->getParam("id")->value();
 
     // Print old interval before updating
-Serial.println("⚠️\n User selected new schedule");
-    Serial.printf("ℹ️ Previous schedule interval: %d minutes\n", intervalBetweenTx / 60);
-
-    preferences.begin("settings", false);
-    preferences.putString("scheduleState", scheduleState);
-    preferences.end();
-
-    // Update based on selected schedule
+    Serial.println("\n\n⚠️ User selected new TX interval");
+    Serial.printf("ℹ️ Previous TX interval: %d minutes\n", intervalBetweenTx / 60);
+        // Update based on selected schedule
     if (scheduleState == "schedule1") intervalBetweenTx = 2 * 60;
     else if (scheduleState == "schedule2") intervalBetweenTx = 4 * 60;
     else if (scheduleState == "schedule3") intervalBetweenTx = 6 * 60;
     else if (scheduleState == "schedule4") intervalBetweenTx = 8 * 60;
     else if (scheduleState == "schedule5") intervalBetweenTx = 10 * 60;
-    else intervalBetweenTx = 2 * 60;
+    else intervalBetweenTx = 2 * 60;   
+    
+    Serial.printf("ℹ️ New TX interval:      %d minutes\n",  intervalBetweenTx / 60);
 
-    Serial.printf(\n"📅 New schedule selected: %s ➡️ Interval set to %d minutes\n", scheduleState.c_str(), intervalBetweenTx / 60);
-
-    isFirstIteration = true;
+    
     interruptWSPRcurrentTX = true;
+          isFirstIteration = true;
+   
+    preferences.begin("settings", false);
+    preferences.putString("scheduleState", scheduleState);
+    preferences.end();
+
+
+
+
+  
+         
+     
+
   } else {
     Serial.println("⚠️ No schedule ID received!");
   }
 
-  request->send(200, "text/plain", "OK");
-});
+  request->send(200, "text/plain", "OK"); });
 
     // 🛠️ Control and calibration
     server.on("/startCalibtation", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -1060,28 +1121,6 @@ void manuallyResyncTime()
     sntp_stop(); // Disable again
 }
 
-void initialTimeSynViaSNTPXXXX()
-{
-    // 📴 Stop any previous SNTP sync attempts
-    sntp_set_sync_interval(0); // Disable automatic sync
-    sntp_stop();
-
-    // 🌐 Start SNTP with UTC offset 0 (UTC time)
-    configTime(0, 0, "pool.ntp.org");
-
-    // ⏳ Wait for SNTP time to be set
-    Serial.print("⏳ Waiting for time sync");
-    time_t now = time(nullptr);
-    while (now < 8 * 3600 * 2)
-    { // Wait until year is valid (>1970)
-        delay(500);
-        Serial.print(".");
-        now = time(nullptr);
-    }
-
-    Serial.println("\n✅ Time synchronized!");
-}
-
 void initialTimeSyncViaSNTP()
 {
     const char *ntpServers[] = {
@@ -1131,78 +1170,6 @@ void initialTimeSyncViaSNTP()
     Serial.println("❌ All SNTP servers failed.");
 }
 
-bool syncTimeFromGPS()
-{
-    Serial.println("📡 Trying to get time from GPS...");
-
-    GPSserial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX); // Ensure correct serial initialization
-    unsigned long start = millis();
-
-    while (millis() - start < 10000) // Increased timeout to 10 seconds
-    {
-        while (GPSserial.available())
-        {
-            gps.encode(GPSserial.read()); // Read all available GPS data
-        }
-
-        if (gps.time.isUpdated() && gps.date.isUpdated() && gps.time.isValid() && gps.date.isValid())
-        {
-            struct tm timeinfo;
-            timeinfo.tm_year = gps.date.year() - 1900;
-            timeinfo.tm_mon = gps.date.month() - 1;
-            timeinfo.tm_mday = gps.date.day();
-            timeinfo.tm_hour = gps.time.hour();
-            timeinfo.tm_min = gps.time.minute();
-            timeinfo.tm_sec = gps.time.second();
-
-            time_t epoch = mktime(&timeinfo);
-            struct timeval now = {.tv_sec = epoch, .tv_usec = 0};
-            settimeofday(&now, nullptr);
-
-            Serial.printf("✅ GPS time synced: %04d-%02d-%02d %02d:%02d:%02d\n",
-                          gps.date.year(), gps.date.month(), gps.date.day(),
-                          gps.time.hour(), gps.time.minute(), gps.time.second());
-
-            // 📍 Try to update locator from GPS location
-            if (gps.location.isValid())
-            {
-                float latitude = gps.location.lat();
-                float longitude = gps.location.lng();
-
-                String newLocator = latLonToMaidenhead(latitude, longitude);
-
-                if (newLocator != String(loc))
-                {
-                    Serial.printf("📍 Updating stored locator: %s → %s\n", loc, newLocator.c_str());
-
-                    preferences.begin("settings", false);
-                    preferences.putString("locator", newLocator);
-                    preferences.end();
-
-                    newLocator.toCharArray(loc, sizeof(loc)); // update global variable
-                }
-                else
-                {
-                    Serial.println("📍 Locator unchanged, no update needed.");
-                }
-            }
-            else
-            {
-                Serial.println("⚠️ GPS location not valid — skipping locator update.");
-            }
-
-            return true; // ✅ Done
-        }
-
-        // Debug message to indicate GPS is still trying
-        // Serial.println("Debug: GPS time not updated yet, waiting...");
-        delay(100); // Small delay to prevent overwhelming the loop
-    }
-
-    Serial.println("❌ GPS time sync failed. Falling back to SNTP.");
-    return false;
-}
-
 String latLonToMaidenhead(float lat, float lon)
 {
     char maiden[7];
@@ -1245,6 +1212,7 @@ bool connectToWiFi_DHCP_then_Static()
     dhcp_ip = WiFi.localIP();
     dhcp_gateway = WiFi.gatewayIP();
     dhcp_subnet = WiFi.subnetMask();
+    IPAddress primaryDNS = WiFi.dnsIP(0);
 
     Serial.println("\n✅ Connected via DHCP:");
     Serial.print("   📍 IP Address : ");
@@ -1285,9 +1253,9 @@ bool connectToWiFi_DHCP_then_Static()
     Serial.print("   📍 IP Address : ");
     Serial.println(WiFi.localIP());
     Serial.print("   🟢 DNS 1      : ");
-    Serial.println(primaryDNS);
+    Serial.println(WiFi.dnsIP(0));
     Serial.print("   🔵 DNS 2      : ");
-    Serial.println(secondaryDNS);
+    Serial.println(WiFi.dnsIP(1));
 
     // 🌐 Start mDNS
     Serial.println("🌐 Starting mDNS service... ");
@@ -1306,7 +1274,7 @@ bool connectToWiFi_DHCP_then_Static()
 byte getNextEnabledBandIndex(byte currentIndex)
 {
     Serial.println("\n🔄 Searching for next enabled band...");
-    Serial.printf("📍 Current index: %d (%s)\n", currentIndex, WSPRbandNames[currentIndex]);
+    // Serial.printf("📍 Current index: %d (%s)\n", currentIndex, WSPRbandNames[currentIndex]);
 
     // Count how many bands are enabled
     int enabledCount = 0;
@@ -1323,21 +1291,37 @@ byte getNextEnabledBandIndex(byte currentIndex)
         for (int i = 0; i < numWSPRbands; i++)
         {
             Serial.printf("   [%d] %-4s — ❌ DISABLED%s\n", i, WSPRbandNames[i],
-                          (i == currentIndex ? " 🎯 CURRENT" : ""));
+                          (i == currentIndex ? " --> CURRENT" : ""));
         }
         return currentIndex;
     }
 
     if (enabledCount == 1)
     {
+        // Find the only enabled band
+        byte onlyIdx = 0xFF;
+        for (int i = 0; i < numWSPRbands; i++)
+        {
+            if (wsprBandEnabled[i])
+            {
+                onlyIdx = i;
+                break;
+            }
+        }
+
         Serial.println("🔂 Only one band enabled — no hopping.");
         for (int i = 0; i < numWSPRbands; i++)
         {
             const char *emoji = wsprBandEnabled[i] ? "✅ ENABLED " : "❌ DISABLED";
             Serial.printf("   [%d] %-4s — %s%s\n", i, WSPRbandNames[i], emoji,
-                          (i == currentIndex ? " 🎯 CURRENT" : ""));
+                          (i == onlyIdx ? " --> SELECTED" : ""));
         }
-        return currentIndex;
+
+        // If current is already the only enabled one, keep it; otherwise switch to it
+        if (onlyIdx != 0xFF && onlyIdx != currentIndex)
+            Serial.printf("\n✅ Switching to band index %d (%s)\n", onlyIdx, WSPRbandNames[onlyIdx]);
+
+        return (onlyIdx != 0xFF) ? onlyIdx : currentIndex; // fallback safety
     }
 
     // Normal rotation to next enabled band
@@ -1366,9 +1350,9 @@ byte getNextEnabledBandIndex(byte currentIndex)
     }
 
     Serial.printf("\n✅ Switching to band index %d (%s)\n", nextIndex, WSPRbandNames[nextIndex]);
+    Serial.println();
     return nextIndex;
 }
-
 
 byte getFirstEnabledBandIndex()
 {
@@ -1378,4 +1362,78 @@ byte getFirstEnabledBandIndex()
             return i;
     }
     return 0; // fallback to 0 if none are enabled
+}
+
+
+
+
+
+
+bool syncTimeFromGPS()
+{
+    Serial.println("📡 Trying to get time from GPS (requires valid fix)...");
+
+    // If GPSserial is already begun elsewhere, you can remove this begin().
+    GPSserial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
+
+    unsigned long start = millis();
+
+    while (millis() - start < 10000) // 10s timeout
+    {
+        while (GPSserial.available())
+        {
+            char c = GPSserial.read();
+            gps.encode(c); // Manually feed the data
+        }
+
+        // ✅ Require: time+date valid/updated AND we have a valid location fix
+        if (gps.time.isUpdated() && gps.date.isUpdated() &&
+            gps.time.isValid() && gps.date.isValid() &&
+            gps.location.isValid() && gps.location.isUpdated())
+        {
+            struct tm timeinfo;
+            timeinfo.tm_year = gps.date.year() - 1900;
+            timeinfo.tm_mon = gps.date.month() - 1;
+            timeinfo.tm_mday = gps.date.day();
+            timeinfo.tm_hour = gps.time.hour();
+            timeinfo.tm_min = gps.time.minute();
+            timeinfo.tm_sec = gps.time.second();
+
+            time_t epoch = mktime(&timeinfo); // uses current TZ; set TZ to UTC if needed at startup
+            struct timeval now = {.tv_sec = epoch, .tv_usec = 0};
+            settimeofday(&now, nullptr);
+
+            Serial.printf("✅ GPS time synced: %04d-%02d-%02d %02d:%02d:%02d\n",
+                          gps.date.year(), gps.date.month(), gps.date.day(),
+                          gps.time.hour(), gps.time.minute(), gps.time.second());
+
+         
+            // 📍 Update locator if we have a valid fix
+            float latitude = gps.location.lat();
+            float longitude = gps.location.lng();
+
+            String newLocator = latLonToMaidenhead(latitude, longitude);
+
+            if (newLocator != String(loc))
+            {
+                Serial.printf("📍 Updating stored locator: %s → %s\n", loc, newLocator.c_str());
+                preferences.begin("settings", false);
+                preferences.putString("locator", newLocator);
+                preferences.end();
+                newLocator.toCharArray(loc, sizeof(loc)); // update global char array
+            }
+            else
+            {
+                Serial.println("📍 Locator unchanged, no update needed.");
+            }
+            Serial.println();
+            return true; // ✅ Done
+        }
+
+        delay(100); // avoid tight loop
+        yield();
+    }
+
+    Serial.println("❌ GPS time sync skipped — no valid fix within timeout.");
+    return false;
 }
