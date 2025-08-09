@@ -43,7 +43,6 @@ IPAddress dhcp_subnet;
 IPAddress secondaryDNS(1, 1, 1, 1); // 🔵 Cloudflare DNS
 
 const int maxWiFiConnectionAttempts = 5; // Maximum number of attempts to connect
-int totalSatellitesInView = 0;  // Global variable to hold total satellite count
 
 char call[8]; // USER CALLSIGN will be retrieved through preferences
 char loc[7];  // USER MAIDENHEAD GRID LOCATOR first 6 letters.
@@ -121,7 +120,6 @@ String latLonToMaidenhead(float lat, float lon);
 bool connectToWiFi_DHCP_then_Static();
 byte getNextEnabledBandIndex(byte currentIndex);
 byte getFirstEnabledBandIndex();
-int getSatellitesInView();
 // ################################################################################################
 // Prototype declarations
 // related to WSPR
@@ -472,8 +470,8 @@ unsigned long setRandomWSPRfrequency(byte bandIndex)
     unsigned long officialEnd = WSPRbandEnd[bandIndex];
 
     // Make sure there's space for the 6 Hz bandwidth of WSPR signal
-    unsigned long minF = officialStart + 12; // Should be 3, but add 12 for "safety" margin
-    unsigned long maxF = officialEnd - 12;   // Should be 3, but deduct 12 for "safety" margin
+    unsigned long minF = officialStart + 15; // Should be 3, but add 15 as "safety" margin
+    unsigned long maxF = officialEnd - 15;   // Should be 3, but deduct 15 as "safety" margin
 
     unsigned long freq = random(minF, maxF + 1); // inclusive range
 
@@ -1169,6 +1167,74 @@ void initialTimeSyncViaSNTP()
 
     Serial.println("❌ All SNTP servers failed.");
 }
+bool syncTimeFromGPS()
+{
+    Serial.println("📡 Trying to get time from GPS (requires valid fix)...");
+
+    // If GPSserial is already begun elsewhere, you can remove this begin().
+    GPSserial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
+
+    unsigned long start = millis();
+
+    while (millis() - start < 10000) // 10s timeout
+    {
+        while (GPSserial.available())
+        {
+            gps.encode(GPSserial.read()); // feed TinyGPS++
+        }
+
+        // ✅ Require: time+date valid/updated AND we have a valid location fix
+        if (gps.time.isUpdated() && gps.date.isUpdated() &&
+            gps.time.isValid() && gps.date.isValid() &&
+            gps.location.isValid() && gps.location.isUpdated())
+        {
+            struct tm timeinfo;
+            timeinfo.tm_year = gps.date.year() - 1900;
+            timeinfo.tm_mon = gps.date.month() - 1;
+            timeinfo.tm_mday = gps.date.day();
+            timeinfo.tm_hour = gps.time.hour();
+            timeinfo.tm_min = gps.time.minute();
+            timeinfo.tm_sec = gps.time.second();
+
+            time_t epoch = mktime(&timeinfo); // uses current TZ; set TZ to UTC if needed at startup
+            struct timeval now = {.tv_sec = epoch, .tv_usec = 0};
+            settimeofday(&now, nullptr);
+
+            Serial.printf("✅ GPS time synced: %04d-%02d-%02d %02d:%02d:%02d\n",
+                          gps.date.year(), gps.date.month(), gps.date.day(),
+                          gps.time.hour(), gps.time.minute(), gps.time.second());
+
+            // 📍 Update locator if we have a valid fix
+            float latitude = gps.location.lat();
+            float longitude = gps.location.lng();
+
+            String newLocator = latLonToMaidenhead(latitude, longitude);
+
+            if (newLocator != String(loc))
+            {
+                Serial.printf("📍 Updating stored locator: %s → %s\n", loc, newLocator.c_str());
+                preferences.begin("settings", false);
+                preferences.putString("locator", newLocator);
+                preferences.end();
+                newLocator.toCharArray(loc, sizeof(loc)); // update global char array
+            }
+            else
+            {
+                Serial.println("📍 Locator unchanged, no update needed.");
+            }
+            Serial.println();
+            return true; // ✅ Done
+        }
+
+        delay(100); // avoid tight loop
+        yield();
+    }
+
+    Serial.println("❌ GPS time sync skipped — no valid fix within timeout.");
+    return false;
+}
+
+
 
 String latLonToMaidenhead(float lat, float lon)
 {
@@ -1362,78 +1428,4 @@ byte getFirstEnabledBandIndex()
             return i;
     }
     return 0; // fallback to 0 if none are enabled
-}
-
-
-
-
-
-
-bool syncTimeFromGPS()
-{
-    Serial.println("📡 Trying to get time from GPS (requires valid fix)...");
-
-    // If GPSserial is already begun elsewhere, you can remove this begin().
-    GPSserial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
-
-    unsigned long start = millis();
-
-    while (millis() - start < 10000) // 10s timeout
-    {
-        while (GPSserial.available())
-        {
-            char c = GPSserial.read();
-            gps.encode(c); // Manually feed the data
-        }
-
-        // ✅ Require: time+date valid/updated AND we have a valid location fix
-        if (gps.time.isUpdated() && gps.date.isUpdated() &&
-            gps.time.isValid() && gps.date.isValid() &&
-            gps.location.isValid() && gps.location.isUpdated())
-        {
-            struct tm timeinfo;
-            timeinfo.tm_year = gps.date.year() - 1900;
-            timeinfo.tm_mon = gps.date.month() - 1;
-            timeinfo.tm_mday = gps.date.day();
-            timeinfo.tm_hour = gps.time.hour();
-            timeinfo.tm_min = gps.time.minute();
-            timeinfo.tm_sec = gps.time.second();
-
-            time_t epoch = mktime(&timeinfo); // uses current TZ; set TZ to UTC if needed at startup
-            struct timeval now = {.tv_sec = epoch, .tv_usec = 0};
-            settimeofday(&now, nullptr);
-
-            Serial.printf("✅ GPS time synced: %04d-%02d-%02d %02d:%02d:%02d\n",
-                          gps.date.year(), gps.date.month(), gps.date.day(),
-                          gps.time.hour(), gps.time.minute(), gps.time.second());
-
-         
-            // 📍 Update locator if we have a valid fix
-            float latitude = gps.location.lat();
-            float longitude = gps.location.lng();
-
-            String newLocator = latLonToMaidenhead(latitude, longitude);
-
-            if (newLocator != String(loc))
-            {
-                Serial.printf("📍 Updating stored locator: %s → %s\n", loc, newLocator.c_str());
-                preferences.begin("settings", false);
-                preferences.putString("locator", newLocator);
-                preferences.end();
-                newLocator.toCharArray(loc, sizeof(loc)); // update global char array
-            }
-            else
-            {
-                Serial.println("📍 Locator unchanged, no update needed.");
-            }
-            Serial.println();
-            return true; // ✅ Done
-        }
-
-        delay(100); // avoid tight loop
-        yield();
-    }
-
-    Serial.println("❌ GPS time sync skipped — no valid fix within timeout.");
-    return false;
 }
