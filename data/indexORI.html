@@ -555,7 +555,7 @@ function sendPower() {
 }
 
 function highlightBandSelection(frequencyHz, mode) {
-   // console.log(`📡 highlightBandSelection called with frequency: ${frequencyHz} Hz, mode: ${mode}`);
+    // console.log(`📡 highlightBandSelection called with frequency: ${frequencyHz} Hz, mode: ${mode}`);
 
     // Exact frequency-to-band ID mapping in Hz (matches WSPRbandStart[])
     const bandMap = {
@@ -669,7 +669,7 @@ function updateProgressBar() {
                 txProgressBar.setAttribute("aria-valuenow", n);
                 txProgressLabel.textContent = formatTimeForProgressBarLabel(n);
                 progressText.textContent = "Transmitting";
-                 highlightBandSelection(o, "transmitting");
+                highlightBandSelection(o, "transmitting");
 
 
                 greenProgressContainer.style.display = "none";
