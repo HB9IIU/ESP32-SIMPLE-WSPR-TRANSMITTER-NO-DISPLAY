@@ -322,6 +322,7 @@ void initSI5351()
     if (Wire.endTransmission() != 0)
     {
         Serial.println("❌ Si5351 not found at 0x60. Check wiring or power.");
+        return;
         while (true)
             ;
     }
