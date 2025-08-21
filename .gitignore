@@ -29,25 +29,9 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# Archive & backup files
-*.zip
-*.tar.gz
-*.tgz
-*.bak
-*.tmp
-*.swp
-*.swo
-*.old
 
-# Compiled object files and logs
-*.o
-*.obj
-*.elf
-*.map
-*.bin
-*.hex
-*.exe
-*.log
+
+
 
 # Arduino-related cache
 *.arduino*
