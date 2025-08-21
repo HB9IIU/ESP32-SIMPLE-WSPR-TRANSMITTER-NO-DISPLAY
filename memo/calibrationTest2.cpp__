@@ -1,0 +1,332 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <si5351.h>
+#include "driver/pcnt.h"
+#include <Preferences.h>
+
+bool test14MhzOutput = false;
+bool startFresh = true;
+
+Preferences prefs;
+
+// ---------------- Pins / Units ----------------
+#define SI5351_SDA 25
+#define SI5351_SCL 26
+#define PPS_PIN 27        // GPS 1PPS -> GPIO27
+#define PCNT_INPUT_PIN 32 // 1 MHz signal -> GPIO32
+#define PCNT_UNIT_USED PCNT_UNIT_0
+#define PCNT_CH_USED PCNT_CHANNEL_0
+
+// ---------------- Single source of truth for frequencies (in Hz) ----------------
+constexpr uint32_t CLK1_HZ = 5000000;  // what PCNT measures (target)
+constexpr uint32_t CLK0_HZ = 14000000; // WSPR test output on CLK0
+
+// Library wants centi-Hz (Hz * 100)
+constexpr uint64_t to_centi_hz(uint32_t hz) { return static_cast<uint64_t>(hz) * 100ULL; }
+constexpr uint64_t CLK1_cHz = to_centi_hz(CLK1_HZ);
+constexpr uint64_t CLK0_cHz = to_centi_hz(CLK0_HZ);
+
+
+// ---------------- Si5351 ----------------
+Si5351 si5351;
+// If you already know a good starting correction, put it here (e.g. 134000).
+static int32_t cal_factor_ppb = 0;
+
+// ---------------- PCNT accumulators ----------------
+volatile uint64_t pcnt_base = 0; // +32768 on each HLIM event
+volatile uint64_t last_second_count = 0;
+volatile bool pps_latched = false;
+
+// ---------------- Auto-cal "servo" params ----------------
+static const uint8_t MEDIAN_N = 5;         // robust filter on ppb
+static const uint8_t APPLY_PERIOD = 5;     // apply every 5 PPS
+static const int32_t STEP_CAP_PPB = 15000; // max step per adjust
+static const int32_t LOCK_BAND_PPB = 1000; // ±3 kppb considered "locked"
+static const uint8_t LOCK_HOLDOFF = 5;     // need 5 consecutive inside band
+
+// state
+int32_t ppb_hist[MEDIAN_N] = {0};
+uint8_t ppb_hist_fill = 0;
+uint8_t ppb_hist_idx = 0;
+uint8_t pps_since_apply = 0;
+bool skip_next = false;
+bool locked = false;
+uint8_t lock_hits = 0;
+
+// ---------------- ISRs ----------------
+static void IRAM_ATTR pcnt_hlim_isr(void *arg)
+{
+  pcnt_base += 32768ULL;
+  pcnt_counter_clear(PCNT_UNIT_USED);
+}
+
+static void IRAM_ATTR pps_isr()
+{
+  int16_t hw_now = 0;
+  pcnt_get_counter_value(PCNT_UNIT_USED, &hw_now); // 0..32767
+  last_second_count = pcnt_base + (uint16_t)hw_now;
+  pcnt_base = 0;
+  pcnt_counter_clear(PCNT_UNIT_USED);
+  pps_latched = true;
+}
+
+// ---------------- Helpers ----------------
+static inline int32_t round_to_int(double x)
+{
+  return (int32_t)(x >= 0.0 ? x + 0.5 : x - 0.5);
+}
+
+// measured > target => positive ppb (Etherkit: positive ppb lowers output)
+static inline int32_t ppb_from_count(uint32_t measured_hz)
+{
+  double ppb = (((double)measured_hz / (double)CLK1_HZ) - 1.0) * 1e9;
+  return round_to_int(ppb);
+}
+
+static inline int32_t clamp_ppb(int32_t v, int32_t lo, int32_t hi)
+{
+  if (v < lo)
+    return lo;
+  if (v > hi)
+    return hi;
+  return v;
+}
+
+static int32_t median_n(const int32_t *a, uint8_t n)
+{
+  int32_t tmp[MEDIAN_N];
+  for (uint8_t i = 0; i < n; ++i)
+    tmp[i] = a[i];
+  for (int i = 1; i < n; ++i)
+  {
+    int32_t key = tmp[i];
+    int j = i - 1;
+    while (j >= 0 && tmp[j] > key)
+    {
+      tmp[j + 1] = tmp[j];
+      --j;
+    }
+    tmp[j + 1] = key;
+  }
+  return tmp[n / 2];
+}
+
+void initSI5351()
+{
+  Serial.println("=== Initializing Si5351 ===");
+
+  Serial.println("Starting I2C communication with Si5351...");
+  Wire.begin(SI5351_SDA, SI5351_SCL);
+  Wire.setClock(400000);
+  Serial.println("I2C started at 400 kHz");
+
+  Serial.print("Checking Si5351 at I2C address 0x60... ");
+  Wire.beginTransmission(0x60);
+  if (Wire.endTransmission() != 0)
+  {
+    Serial.println("❌ Si5351 not found at 0x60. Halting.");
+    while (true)
+    {
+      delay(1000);
+    }
+  }
+  Serial.println("✔ Si5351 module detected successfully at 0x60!");
+
+  Serial.println("Resetting Si5351...");
+  si5351.reset();
+  Serial.println("Si5351 reset complete.");
+
+  Serial.println("Initializing Si5351 with 8pF crystal load...");
+  si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);
+
+  Serial.print("Applying frequency correction: ");
+  Serial.print(cal_factor_ppb);
+  Serial.println(" ppb");
+  si5351.set_correction(cal_factor_ppb, SI5351_PLL_INPUT_XO);
+
+  Serial.print("Setting CLK1 frequency to ");
+  Serial.print(CLK1_cHz / 100.0);
+  Serial.println(" Hz");
+  si5351.set_freq(CLK1_cHz, SI5351_CLK1);
+
+  Serial.print("Setting CLK0 frequency to ");
+  Serial.print(CLK0_cHz / 100.0);
+  Serial.println(" Hz");
+  si5351.set_freq(CLK0_cHz, SI5351_CLK0);
+
+  Serial.println("Setting drive strength: CLK1 = 8mA, CLK0 = 8mA");
+  si5351.drive_strength(SI5351_CLK1, SI5351_DRIVE_2MA);
+  si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA);
+
+  Serial.println("Power control: turning OFF CLK0, turning ON CLK1");
+  si5351.set_clock_pwr(SI5351_CLK0, 0); // keep CLK0 off by default
+  si5351.set_clock_pwr(SI5351_CLK1, 1); // enable CLK1 for counting
+
+  Serial.println("=== Si5351 Initialization complete ===");
+}
+
+
+void initPCNT()
+{
+  pcnt_config_t pcfg = {};
+  pcfg.pulse_gpio_num = PCNT_INPUT_PIN;
+  pcfg.ctrl_gpio_num = PCNT_PIN_NOT_USED;
+  pcfg.unit = PCNT_UNIT_USED;
+  pcfg.channel = PCNT_CH_USED;
+  pcfg.pos_mode = PCNT_COUNT_INC; // rising only
+  pcfg.neg_mode = PCNT_COUNT_DIS;
+  pcfg.lctrl_mode = PCNT_MODE_KEEP;
+  pcfg.hctrl_mode = PCNT_MODE_KEEP;
+  pcfg.counter_l_lim = 0;
+  pcfg.counter_h_lim = 32767;
+
+  if (pcnt_unit_config(&pcfg) != ESP_OK)
+  {
+    Serial.println("❌ pcnt_unit_config failed");
+    while (true)
+    {
+      delay(1000);
+    }
+  }
+
+  pcnt_filter_disable(PCNT_UNIT_USED); // pass 1 MHz
+  pcnt_event_enable(PCNT_UNIT_USED, PCNT_EVT_H_LIM);
+
+  pcnt_counter_pause(PCNT_UNIT_USED);
+  pcnt_counter_clear(PCNT_UNIT_USED);
+
+  pcnt_isr_service_install(0);
+  pcnt_isr_handler_add(PCNT_UNIT_USED, pcnt_hlim_isr, nullptr);
+
+  pcnt_counter_resume(PCNT_UNIT_USED);
+}
+
+// ---------------- Arduino ----------------
+void setup()
+{
+  Serial.begin(115200);
+// Load stored correction (if not starting fresh), and re-apply frequency
+  if (!startFresh)
+  {
+    prefs.begin("si5351", true); // read-only
+    cal_factor_ppb = prefs.getInt("corr_ppb", 0);
+    prefs.end();
+    si5351.set_correction(cal_factor_ppb, SI5351_PLL_INPUT_XO);
+    si5351.set_freq(CLK1_cHz, SI5351_CLK1); // re-apply so correction takes effect
+  }
+  initSI5351();
+
+  // Optional: test 14 MHz on CLK0
+  if (test14MhzOutput)
+  {
+    si5351.set_clock_pwr(SI5351_CLK0, 1);
+    while (true)
+    { /* freeze here to keep CLK0 on */
+    }
+  }
+
+  
+
+  initPCNT();
+
+  pinMode(PPS_PIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(PPS_PIN), pps_isr, RISING);
+
+  Serial.print("Starting correction_ppb = ");
+  Serial.println(cal_factor_ppb);
+  Serial.println("🚀 Auto-cal servo: median-of-5, apply every 5s, dynamic step ±15k ppb, lock ±3k, skip 1s after apply.");
+}
+
+void loop()
+{
+  if (!pps_latched)
+    return;
+  pps_latched = false;
+
+  // Skip the immediate second after any apply so we don't mix old/new in one gate
+  if (skip_next)
+  {
+    skip_next = false;
+    Serial.println("(skipping 1s after apply)");
+    return; // do not use/store this second's count
+  }
+
+  uint32_t freqHz = (uint32_t)last_second_count;
+  int32_t ppb_meas = ppb_from_count(freqHz);
+
+  Serial.print("Count last second: ");
+  Serial.print(freqHz);
+  Serial.print("  Meas ppb: ");
+  Serial.println(ppb_meas);
+
+  // Build ppb history (for median)
+  if (ppb_hist_fill < MEDIAN_N)
+  {
+    ppb_hist[ppb_hist_fill++] = ppb_meas;
+  }
+  else
+  {
+    ppb_hist[ppb_hist_idx] = ppb_meas;
+    ppb_hist_idx = (ppb_hist_idx + 1) % MEDIAN_N;
+  }
+
+  if (locked)
+    return; // once locked, do nothing else
+
+  // Apply only when history full and on the cadence
+  if (ppb_hist_fill == MEDIAN_N)
+  {
+    pps_since_apply++;
+    if (pps_since_apply >= APPLY_PERIOD)
+    {
+      pps_since_apply = 0;
+
+      int32_t med_ppb = median_n(ppb_hist, MEDIAN_N);
+
+      if (abs(med_ppb) <= LOCK_BAND_PPB)
+      {
+        lock_hits++;
+        Serial.print("Within lock band (±");
+        Serial.print(LOCK_BAND_PPB);
+        Serial.print(" ppb). Hits: ");
+        Serial.println(lock_hits);
+
+        if (lock_hits >= LOCK_HOLDOFF)
+        {
+          locked = true;
+          Serial.print("🎯 Locked. Final correction_ppb = ");
+          Serial.println(cal_factor_ppb);
+
+          // Save to NVS only when lock achieved
+          prefs.begin("si5351", false); // read/write
+          prefs.putInt("corr_ppb", cal_factor_ppb);
+          prefs.end();
+
+          Serial.println("💾 Correction factor saved to NVS.");
+
+  si5351.set_clock_pwr(SI5351_CLK0, 1); // keep CLK0 off by default
+  si5351.set_clock_pwr(SI5351_CLK1, 0); // enable CLK1 for counting
+
+        }
+      }
+      else
+      {
+        lock_hits = 0;
+        // Dynamic step: half the median error, capped
+        int32_t step = med_ppb / 2;
+        step = clamp_ppb(step, -STEP_CAP_PPB, +STEP_CAP_PPB);
+        cal_factor_ppb += step;
+
+        Serial.print("Apply step ppb: ");
+        Serial.print(step);
+        Serial.print("   New total correction_ppb: ");
+        Serial.println(cal_factor_ppb);
+
+        si5351.set_correction(cal_factor_ppb, SI5351_PLL_INPUT_XO);
+        si5351.set_freq(CLK1_cHz, SI5351_CLK1);
+
+        skip_next = true; // let PLL settle for a full second
+      }
+    }
+  }
+}

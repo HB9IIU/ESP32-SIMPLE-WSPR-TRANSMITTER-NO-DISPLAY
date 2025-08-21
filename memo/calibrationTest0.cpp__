@@ -1,0 +1,129 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <si5351.h>
+#include "driver/pcnt.h"
+
+// ---------------- Pins / Units ----------------
+#define SI5351_SDA        25
+#define SI5351_SCL        26
+#define GPS_RX            16   // (unused here)
+#define GPS_TX            17   // (unused here)
+#define PPS_PIN           27   // GPS 1PPS -> GPIO27
+#define PCNT_INPUT_PIN    32   // 1 MHz signal -> GPIO32
+#define PCNT_UNIT_USED    PCNT_UNIT_0
+#define PCNT_CH_USED      PCNT_CHANNEL_0
+
+// ---------------- Target ----------------
+#define TARGET_HZ         1000000UL  // 1 MHz
+
+// ---------------- Si5351 ----------------
+Si5351 si5351;
+// Etherkit set_freq() expects hundredths of a Hz (Hz * 100)
+uint64_t TX_referenceFrequ = 100000000ULL; // 1,000,000 Hz -> 100,000,000 (Hz*100)
+int32_t cal_factor = 134000; // no calibration applied
+
+// ---------------- PCNT Accumulators ----------------
+// PCNT counts 0..32767; on high-limit event we add 32768 to pcnt_base.
+volatile uint64_t pcnt_base = 0;
+volatile uint64_t last_second_count = 0;
+volatile bool     pps_latched = false;
+
+// ---------------- ISRs ----------------
+static void IRAM_ATTR pcnt_overflow_isr(void* arg) {
+  pcnt_base += 32768ULL;
+  pcnt_counter_clear(PCNT_UNIT_USED);
+}
+
+static void IRAM_ATTR pps_isr() {
+  int16_t hw_now = 0;
+  pcnt_get_counter_value(PCNT_UNIT_USED, &hw_now);   // 0..32767
+  last_second_count = pcnt_base + (uint16_t)hw_now;  // snapshot
+  pcnt_base = 0;
+  pcnt_counter_clear(PCNT_UNIT_USED);
+  pps_latched = true;
+}
+
+// ---------------- Helpers ----------------
+void initSI5351() {
+  Wire.begin(SI5351_SDA, SI5351_SCL);
+  Wire.setClock(400000);
+
+  Wire.beginTransmission(0x60);
+  if (Wire.endTransmission() != 0) {
+    Serial.println("❌ Si5351 not found at 0x60. Check wiring/power.");
+    while (true) { delay(1000); }
+  }
+
+  si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, 0);
+  si5351.set_correction(cal_factor, SI5351_PLL_INPUT_XO); // stays 0 (not applied dynamically)
+  si5351.set_freq(TX_referenceFrequ, SI5351_CLK1);       // 1 MHz request (Hz*100)
+  si5351.drive_strength(SI5351_CLK1, SI5351_DRIVE_2MA);
+  si5351.set_clock_pwr(SI5351_CLK1, 1);
+}
+
+void initPCNT() {
+  pcnt_config_t pcfg = {};
+  pcfg.pulse_gpio_num = PCNT_INPUT_PIN;
+  pcfg.ctrl_gpio_num  = PCNT_PIN_NOT_USED;
+  pcfg.unit           = PCNT_UNIT_USED;
+  pcfg.channel        = PCNT_CH_USED;
+  pcfg.pos_mode       = PCNT_COUNT_INC;   // rising edges only
+  pcfg.neg_mode       = PCNT_COUNT_DIS;
+  pcfg.lctrl_mode     = PCNT_MODE_KEEP;
+  pcfg.hctrl_mode     = PCNT_MODE_KEEP;
+  pcfg.counter_l_lim  = 0;
+  pcfg.counter_h_lim  = 32767;
+
+  if (pcnt_unit_config(&pcfg) != ESP_OK) {
+    Serial.println("❌ pcnt_unit_config failed");
+    while (true) { delay(1000); }
+  }
+
+  pcnt_filter_disable(PCNT_UNIT_USED);                 // pass 1 MHz edges
+  pcnt_event_enable(PCNT_UNIT_USED, PCNT_EVT_H_LIM);
+
+  pcnt_counter_pause(PCNT_UNIT_USED);
+  pcnt_counter_clear(PCNT_UNIT_USED);
+
+  pcnt_isr_service_install(0);
+  pcnt_isr_handler_add(PCNT_UNIT_USED, pcnt_overflow_isr, nullptr);
+
+  pcnt_counter_resume(PCNT_UNIT_USED);
+}
+
+// Compute suggested correction in ppb from a single count (do NOT apply)
+static inline int32_t suggested_ppb_from_count(uint32_t measured_hz) {
+  // ppb = ((measured / TARGET_HZ) - 1) * 1e9, rounded to nearest integer
+  double ppb = ( ( (double)measured_hz / (double)TARGET_HZ ) - 1.0 ) * 1e9;
+  return (int32_t)( ppb >= 0.0 ? (ppb + 0.5) : (ppb - 0.5) );
+}
+
+// ---------------- Arduino ----------------
+void setup() {
+  Serial.begin(115200);
+  delay(200);
+
+  initSI5351();
+  initPCNT();
+
+  pinMode(PPS_PIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(PPS_PIN), pps_isr, RISING);
+
+  Serial.println("🚀 PPS-gated 1 MHz counter (printing suggested correction only, not applying).");
+}
+
+void loop() {
+  if (pps_latched) {
+    pps_latched = false;
+
+    uint32_t freqHz = (uint32_t)last_second_count; // rising edges in last 1 s
+    int32_t corr_ppb = suggested_ppb_from_count(freqHz);
+
+    // Print exactly as you asked: count + " Cor, Factor"
+    Serial.print("Count last second: ");
+    Serial.print(freqHz);
+    Serial.print("  Cor, Factor: ");
+    Serial.print(corr_ppb);
+    Serial.println(" ppb");
+  }
+}

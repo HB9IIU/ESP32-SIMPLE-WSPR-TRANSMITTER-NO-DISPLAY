@@ -1,0 +1,62 @@
+#include <Arduino.h>
+
+// Define the PWM pin to use (GPIO 2 in this case, change it as needed)
+#define PWM_PIN 2
+
+// Define the PWM channel, frequency, and resolution as variables
+int pwmChannel = 0;      // PWM channel (ESP32 has 16 channels)
+int pwmFrequency = 1000; // PWM frequency in Hz (1 kHz)
+int pwmResolution = 16;  // PWM resolution (16-bit, 0-65535) (can also be 8 bits, 0-255)
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial);  // Wait for the serial port to be available
+
+  // Initialize the PWM pin
+  pinMode(PWM_PIN, OUTPUT);
+  
+  // Debug: Inform the user that PWM is being set up
+  Serial.println("Setting up PWM...");
+
+  // Set up PWM on the pin with the defined variables
+  ledcSetup(pwmChannel, pwmFrequency, pwmResolution);  // Channel, Frequency, Resolution
+  ledcAttachPin(PWM_PIN, pwmChannel);  // Attach the pin to the PWM channel
+  
+  // Debug: Output the PWM setup values
+  Serial.print("PWM Channel: ");
+  Serial.println(pwmChannel);
+  Serial.print("PWM Frequency: ");
+  Serial.println(pwmFrequency);
+  Serial.print("PWM Resolution: ");
+  Serial.println(pwmResolution);
+  Serial.println("PWM setup complete.");
+}
+
+void loop() {
+  
+  Serial.println("Increasing PWM duty cycle...");
+
+  // Gradually increase the PWM duty cycle (0 to 65535)
+  for (int dutyCycle = 0; dutyCycle <= 65535; dutyCycle++) {
+    ledcWrite(pwmChannel, dutyCycle); // Set the PWM duty cycle
+    if (dutyCycle % 8192 == 0) { // Print the duty cycle every 8-bit increment (8192 = 65536 / 8)
+      Serial.print("Duty Cycle (Increasing): ");
+      Serial.println(dutyCycle);
+    }
+    delay(1); // Wait for a short time to observe the change
+  }
+
+  Serial.println("Decreasing PWM duty cycle...");
+
+  // Gradually decrease the PWM duty cycle (65535 to 0)
+  for (int dutyCycle = 65535; dutyCycle >= 0; dutyCycle--) {
+    ledcWrite(pwmChannel, dutyCycle); // Set the PWM duty cycle
+    if (dutyCycle % 8192 == 0) { // Print the duty cycle every 8-bit increment (8192 = 65536 / 8)
+      Serial.print("Duty Cycle (Decreasing): ");
+      Serial.println(dutyCycle);
+    }
+    delay(1); // Wait for a short time to observe the change
+  }
+
+
+}
