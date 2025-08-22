@@ -767,7 +767,7 @@ void configure_web_server()
 
     server.on("/getModeOfOperation", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-    DynamicJsonDocument doc(128);
+    JsonDocument doc;
     doc["modeOfOperation"] = modeOfOperation;
 
     String jsonResponse;
@@ -803,8 +803,9 @@ void configure_web_server()
 
     server.on("/getSelectedBands", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                  StaticJsonDocument<128> doc;
-                  JsonArray arr = doc.createNestedArray("selectedBands");
+                  JsonDocument doc;
+                  JsonArray arr = doc["selectedBands"].to<JsonArray>();
+
 
                   for (int i = 0; i < numWSPRbands; i++)
                   {
@@ -868,7 +869,7 @@ void configure_web_server()
     // 🔧 Settings and data endpoints
     server.on("/getAllSettings", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-    StaticJsonDocument<256> doc;
+    JsonDocument doc;
     doc["version"] = "Ver. " + String(VERSION);
     doc["callsign"] = String(call);         // from global char array
     doc["locator"] = String(loc);           // from global char array
@@ -897,7 +898,7 @@ void configure_web_server()
     preferences.end();
 
     Serial.println("📤 Sending Locator...");
-    StaticJsonDocument<64> doc;
+    JsonDocument doc;
     doc["locator"] = locator;
     String json;
     serializeJson(doc, json);
@@ -910,7 +911,7 @@ void configure_web_server()
     preferences.end();
 
     Serial.println("📤 Sending Power Info...");
-    StaticJsonDocument<64> doc;
+    JsonDocument doc;
     doc["power"] = power;
     String json;
     serializeJson(doc, json);
@@ -919,7 +920,7 @@ void configure_web_server()
     server.on("/getTimes", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     //Serial.printf("📤 Sending WSPR Timing Info to web page (TX = %d s, Next = %d s)\n", tx_ON_running_time_in_s, currentRemainingSeconds);
-    StaticJsonDocument<128> doc;
+    JsonDocument doc;
     doc["currentRemainingSeconds"] = currentRemainingSeconds;
     doc["txRunningTime"] = tx_ON_running_time_in_s;
     doc["TX_referenceFrequ"] = TX_referenceFrequ ;
