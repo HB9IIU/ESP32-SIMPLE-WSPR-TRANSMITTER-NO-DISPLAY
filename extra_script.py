@@ -5,7 +5,7 @@ import os, shutil
 # ========================
 # CONFIGURATION
 # ========================
-FIRMWARE_NAME = "EasyWSPRfirmware"   # final filename (no path)
+FIRMWARE_NAME = "WSPRplusFirmware"   # final filename (no path)
 FLASH_SIZE    = "4MB"                # adjust to your board
 FS_OFFSET_HEX = "0x290000"           # set to your FS offset (e.g. 0x210000 or 0x290000)
 # ========================

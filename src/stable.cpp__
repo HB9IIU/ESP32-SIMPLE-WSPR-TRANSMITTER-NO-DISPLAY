@@ -126,16 +126,16 @@ byte getFirstEnabledBandIndex();
 // ✅ WSPR Band Definitions (Hz) including 6m support
 // https://www.wsprnet.org/drupal/sites/wsprnet.org/files/wspr-qrg.pdf
 const char *WSPRbandNames[] = {
-    "160m", "80m", "40m", "30m", "20m",
-    "17m", "15m", "12m", "10m", "6m"};
+    "80m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m"};
 
 const unsigned long WSPRbandStart[] = {
-    1836600, 3570000, 7040000, 10140100, 14097000,
-    18106000, 21096000, 24926000, 28126000, 50293000};
+    3570000, 7040000, 10140100, 14097000, 18106000,
+    21096000, 24926000, 28126000, 50293000};
 
 const unsigned long WSPRbandEnd[] = {
-    1836800, 3570200, 7040200, 10140300, 14097200,
-    18106200, 21096200, 24926200, 28126200, 50293200};
+    3570200, 7040200, 10140300, 14097200, 18106200,
+    21096200, 24926200, 28126200, 50293200};
+
 const byte numWSPRbands = sizeof(WSPRbandNames) / sizeof(WSPRbandNames[0]);
 
 bool wsprBandEnabled[numWSPRbands] = {false}; // All disabled initially

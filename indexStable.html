@@ -1,17 +1,16 @@
 <!doctype html>
 <html class="h-100" lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta content="width=device-width,initial-scale=1" name="viewport">
-    <meta content="" name="description">
-    <title>HB9IIU WSPR Beacon</title>
-    <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
-          rel="stylesheet">
-    <link crossorigin="" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet">
-    <link href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" rel="stylesheet">
-    <link href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.92.0/Widgets/widgets.css" rel="stylesheet">
-    <style>main > .container {
+    <head>
+        <meta charset="utf-8">
+        <meta content="width=device-width,initial-scale=1" name="viewport">
+        <meta content="" name="description">
+        <title>HB9IIU WSPR Beacon</title>
+        <link crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link crossorigin="" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet">
+        <link href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" rel="stylesheet">
+        <link href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.92.0/Widgets/widgets.css" rel="stylesheet">
+        <style>main > .container {
         padding: 60px 15px 0;
         margin-top: 15px;
     }
@@ -170,386 +169,349 @@
         font-weight: bold;
         color: white; /* Ensure visibility over the progress bar */
     }</style>
-    <link href="https://fonts.googleapis.com/css?family=Share+Tech+Mono&display=swap" rel="stylesheet">
-</head>
-<body class="d-flex flex-column h-100">
-<header>
-    <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="">Web WSPR Beacon</a>
-            <button aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" class="navbar-toggler
+        <link href="https://fonts.googleapis.com/css?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    </head>
+    <body class="d-flex flex-column h-100">
+        <header>
+            <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+                <div class="container-fluid">
+                    <a class="navbar-brand" href="">Web WSPR Beacon</a>
+                    <button aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" class="navbar-toggler
 " data-bs-target="#navbarCollapse" data-bs-toggle="collapse" type="button">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarCollapse">
-                <ul class="navbar-nav me-auto mb-2 mb-md-0">
-                    <li class="nav-item">
-                        <a class="active nav-link" href="https://wspr.rocks/" target="_blank">wspr.rocks</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="active nav-link"
-                           href="https://github.com/HB9IIU/ESP32-SIMPLE-WSPR-TRANSMITTER-NO-DISPLAY" target="_blank">gituHub</a>
-                    </li>
-                </ul>
-            </div>
-            <h6 id="version" style="color:#7f7f7f">Beta 1.0</h6>
-        </div>
-    </nav>
-</header>
-<main class="flex-shrink-0">
-    <div class="container">
-        <div class="row">
-            <div class="col-4 pe-auto">
-                <div class="row g-0">
-                    <div class="col-md-12 text-end">
-                        <h4 style="text-align:left">TX Bands&nbsp;<span class="fs-6">Band Start Frequencies</span></h4>
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="collapse navbar-collapse" id="navbarCollapse">
+                        <ul class="navbar-nav me-auto mb-2 mb-md-0">
+                            <li class="nav-item">
+                                <a class="active nav-link" href="https://wspr.rocks/" target="_blank">wspr.rocks</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="active nav-link" href="https://github.com/HB9IIU/ESP32-SIMPLE-WSPR-TRANSMITTER-NO-DISPLAY" target="_blank">gituHub</a>
+                            </li>
+                        </ul>
                     </div>
+                    <h6 id="version" style="color:#7f7f7f">Beta 1.0</h6>
                 </div>
-                <div class="form-check mb-2" data-pg-collapsed>
-                    <div class="row g-0 align-items-center">
-                        <div class="col-auto" data-pg-collapsed>
-                            <div class="d-inline-flex align-items-center" id="wrap-160m">
-                                <input class="form-check-input me-2" id="chk-160m" type="checkbox" value="">
-                                <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-160m">
-                                    <label class="form-check-label me-2" for="chk-160m">
-                                        <strong id="label-160m" style="font-size: 14px;">160
-                                            m</strong>
-                                    </label>
-                                    <div id="freq-160m-cb" style="font-size: 14px;">1.8 Mhz</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Band Rows -->
-                <!-- Repeat for each band -->
-                <div class="form-check mb-2" data-pg-collapsed>
-                    <div class="row g-0 align-items-center">
-                        <div class="col-auto" data-pg-collapsed>
-                            <div class="d-inline-flex align-items-center" id="wrap-80m">
-                                <input class="form-check-input me-2" id="chk-80m" type="checkbox" value="">
-                                <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-80m">
-                                    <label class="form-check-label me-2" for="chk-80m">
-                                        <strong id="label-80m" style="font-size: 14px;">80
-                                            m</strong>
-                                    </label>
-                                    <div id="freq-80m-cb" style="font-size: 14px;">3.5 Mhz</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-check mb-2" data-pg-collapsed>
-                    <div class="row g-0 align-items-center" data-pg-collapsed>
-                        <div class="col-auto">
-                            <div class="d-inline-flex align-items-center" id="wrap-40m">
-                                <input class="form-check-input me-2" id="chk-40m" type="checkbox" value="">
-                                <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-40m">
-                                    <label class="form-check-label me-2" for="chk-40m">
-                                        <strong id="label-40m" style="font-size: 14px;">40
-                                            m</strong>
-                                    </label>
-                                    <div id="freq-40m-cb" style="font-size: 12px;">7.04 Mhz</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Continue for each band with same structure -->
-                <div class="form-check mb-2" data-pg-collapsed>
-                    <div class="row g-0 align-items-center">
-                        <div class="col-auto">
-                            <div class="d-inline-flex align-items-center" id="wrap-30m">
-                                <input class="form-check-input me-2" id="chk-30m" type="checkbox" value="">
-                                <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-30m">
-                                    <label class="form-check-label me-2" for="chk-30m">
-                                        <strong id="label-30m" style="font-size: 14px;">30
-                                            m</strong>
-                                    </label>
-                                    <div id="freq-30m-cb" style="font-size: 12px;">10.141 MHz</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-check mb-2" data-pg-collapsed>
-                    <div class="row g-0 align-items-center">
-                        <div class="col-auto">
-                            <div class="d-inline-flex align-items-center" id="wrap-20m">
-                                <input class="form-check-input me-2" id="chk-20m" type="checkbox" value="">
-                                <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-20m">
-                                    <label class="form-check-label me-2" for="chk-20m">
-                                        <strong id="label-20m" style="font-size: 14px;">20
-                                            m</strong>
-                                    </label>
-                                    <div id="freq-20m-cb" style="font-size: 12px;">14.097 Mhz</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-check mb-2" data-pg-collapsed>
-                    <div class="row g-0 align-items-center">
-                        <div class="col-auto">
-                            <div class="d-inline-flex align-items-center" id="wrap-17m">
-                                <input class="form-check-input me-2" id="chk-17m" type="checkbox" value="">
-                                <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-17m">
-                                    <label class="form-check-label me-2" for="chk-17m">
-                                        <strong id="label-17m" style="font-size: 14px;">17
-                                            m</strong>
-                                    </label>
-                                    <div id="freq-17m-cb" style="font-size: 12px;">18.106 MHz</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-check mb-2" data-pg-collapsed>
-                    <div class="row g-0 align-items-center">
-                        <div class="col-auto">
-                            <div class="d-inline-flex align-items-center" id="wrap-15m">
-                                <input class="form-check-input me-2" id="chk-15m" type="checkbox" value="">
-                                <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-15m">
-                                    <label class="form-check-label me-2" for="chk-15m">
-                                        <strong id="label-15m" style="font-size: 14px;">15
-                                            m</strong>
-                                    </label>
-                                    <div id="freq-15m-cb" style="font-size: 12px;">21.096 MHz</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-check mb-2" data-pg-collapsed>
-                    <div class="row g-0 align-items-center">
-                        <div class="col-auto">
-                            <div class="d-inline-flex align-items-center" id="wrap-12m">
-                                <input class="form-check-input me-2" id="chk-12m" type="checkbox" value="">
-                                <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-12m">
-                                    <label class="form-check-label me-2" for="chk-12m">
-                                        <strong id="label-12m" style="font-size: 14px;">12
-                                            m</strong>
-                                    </label>
-                                    <div id="freq-12m-cb" style="font-size: 12px;">24.926 MHz</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-check mb-2" data-pg-collapsed>
-                    <div class="row g-0 align-items-center">
-                        <div class="col-auto">
-                            <div class="d-inline-flex align-items-center" id="wrap-10m">
-                                <input class="form-check-input me-2" id="chk-10m" type="checkbox" value="">
-                                <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-10m">
-                                    <label class="form-check-label me-2" for="chk-10m">
-                                        <strong id="label-10m" style="font-size: 14px;">10
-                                            m</strong>
-                                    </label>
-                                    <div id="freq-10m-cb" style="font-size: 12px;">28.126 MHz</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="form-check mb-2" data-pg-collapsed>
-                    <div class="row g-0 align-items-center">
-                        <div class="col-auto">
-                            <div class="d-inline-flex align-items-center" id="wrap-6m">
-                                <input class="form-check-input me-2" id="chk-6m" type="checkbox" value="">
-                                <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-6m">
-                                    <label class="form-check-label me-2" for="chk-6m">
-                                        <strong id="label-6m" style="font-size: 14px;">6 m</strong>
-                                    </label>
-                                    <div id="freq-6m-cb" style="font-size: 12px;">50.293 MHz</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4" data-pg-collapsed>
-                <h4 class="mb-3">TX Schedule</h4>
-                <div class="form-check d-flex align-items-center mb-2">
-                    <input class="form-check-input me-2" id="schedule1" name="txInterval" onchange='sendScheduleState("schedule1")'
-                           type="radio">
-                    <label class="form-check-label mb-0" for="schedule1">2 minutes</label>
-                </div>
-                <div class="form-check d-flex align-items-center mb-2">
-                    <input class="form-check-input me-2" id="schedule2" name="txInterval" onchange='sendScheduleState("schedule2")'
-                           type="radio">
-                    <label class="form-check-label mb-0" for="schedule2">4 minutes</label>
-                </div>
-                <div class="form-check d-flex align-items-center mb-2">
-                    <input class="form-check-input me-2" id="schedule3" name="txInterval" onchange='sendScheduleState("schedule3")'
-                           type="radio">
-                    <label class="form-check-label mb-0" for="schedule3">6 minutes</label>
-                </div>
-                <div class="form-check d-flex align-items-center mb-2">
-                    <input class="form-check-input me-2" id="schedule4" name="txInterval" onchange='sendScheduleState("schedule4")'
-                           type="radio">
-                    <label class="form-check-label mb-0" for="schedule4">8 minutes</label>
-                </div>
-                <div class="form-check d-flex align-items-center mb-3">
-                    <input class="form-check-input me-2" id="schedule5" name="txInterval" onchange='sendScheduleState("schedule5")'
-                           type="radio">
-                    <label class="form-check-label mb-0" for="schedule5">10 minutes</label>
-                </div>
-                <div class="row align-items-center g-0">
-                    <div class="text-center" id="WSPRclock" style="text-align:center;margin-top:10px"></div>
-                </div>
-            </div>
-            <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4" data-pg-collapsed>
+            </nav>
+        </header>
+        <main class="flex-shrink-0">
+            <div class="container">
                 <div class="row">
-                    <div class="col-md-6">
-                        <h4>Callsign</h4>
-                        <div class="mb-3">
-                            <input class="form-control" id="callsign" maxlength="6" oninput="validateCallsign()"
-                                   style="text-align: center;">
+                    <div class="col-4 pe-auto">
+                        <div class="row g-0">
+                            <div class="col-md-12 text-end">
+                                <h4 style="text-align:left">TX Bands&nbsp;<span class="fs-6">Band Start Frequencies</span></h4>
+                            </div>
+                        </div>
+                        <!-- Band Rows -->
+                        <!-- Repeat for each band -->
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-80m">
+                                        <input class="form-check-input me-2" id="chk-80m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-80m">
+                                            <label class="form-check-label me-2" for="chk-80m">
+                                                <strong id="label-80m" style="font-size: 14px;">80
+                                        m</strong>
+                                            </label>
+                                            <div id="freq-80m-cb" style="font-size: 14px;">3.5 Mhz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-40m">
+                                        <input class="form-check-input me-2" id="chk-40m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-40m">
+                                            <label class="form-check-label me-2" for="chk-40m">
+                                                <strong id="label-40m" style="font-size: 14px;">40
+                                        m</strong>
+                                            </label>
+                                            <div id="freq-40m-cb" style="font-size: 12px;">7.04 Mhz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Continue for each band with same structure -->
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-30m">
+                                        <input class="form-check-input me-2" id="chk-30m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-30m">
+                                            <label class="form-check-label me-2" for="chk-30m">
+                                                <strong id="label-30m" style="font-size: 14px;">30
+                                        m</strong>
+                                            </label>
+                                            <div id="freq-30m-cb" style="font-size: 12px;">10.141 MHz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-20m">
+                                        <input class="form-check-input me-2" id="chk-20m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-20m">
+                                            <label class="form-check-label me-2" for="chk-20m">
+                                                <strong id="label-20m" style="font-size: 14px;">20
+                                        m</strong>
+                                            </label>
+                                            <div id="freq-20m-cb" style="font-size: 12px;">14.097 Mhz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-17m">
+                                        <input class="form-check-input me-2" id="chk-17m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-17m">
+                                            <label class="form-check-label me-2" for="chk-17m">
+                                                <strong id="label-17m" style="font-size: 14px;">17
+                                        m</strong>
+                                            </label>
+                                            <div id="freq-17m-cb" style="font-size: 12px;">18.106 MHz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-15m">
+                                        <input class="form-check-input me-2" id="chk-15m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-15m">
+                                            <label class="form-check-label me-2" for="chk-15m">
+                                                <strong id="label-15m" style="font-size: 14px;">15
+                                        m</strong>
+                                            </label>
+                                            <div id="freq-15m-cb" style="font-size: 12px;">21.096 MHz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-12m">
+                                        <input class="form-check-input me-2" id="chk-12m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-12m">
+                                            <label class="form-check-label me-2" for="chk-12m">
+                                                <strong id="label-12m" style="font-size: 14px;">12
+                                        m</strong>
+                                            </label>
+                                            <div id="freq-12m-cb" style="font-size: 12px;">24.926 MHz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-10m">
+                                        <input class="form-check-input me-2" id="chk-10m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-10m">
+                                            <label class="form-check-label me-2" for="chk-10m">
+                                                <strong id="label-10m" style="font-size: 14px;">10
+                                        m</strong>
+                                            </label>
+                                            <div id="freq-10m-cb" style="font-size: 12px;">28.126 MHz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check mb-2">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-auto">
+                                    <div class="d-inline-flex align-items-center" id="wrap-6m">
+                                        <input class="form-check-input me-2" id="chk-6m" type="checkbox" value="">
+                                        <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-6m">
+                                            <label class="form-check-label me-2" for="chk-6m">
+                                                <strong id="label-6m" style="font-size: 14px;">6 m</strong>
+                                            </label>
+                                            <div id="freq-6m-cb" style="font-size: 12px;">50.293 MHz</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <h4>Locator</h4>
-                        <div class="mb-3">
-                            <input class="form-control" id="locator" maxlength="6" oninput="validateLocator()"
-                                   style="text-align: center;">
+                    <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4" data-pg-collapsed>
+                        <h4 class="mb-3">TX Schedule</h4>
+                        <div class="form-check d-flex align-items-center mb-2">
+                            <input class="form-check-input me-2" id="schedule1" name="txInterval" type="radio" onchange='sendScheduleState("schedule1")'>
+                            <label class="form-check-label mb-0" for="schedule1">2 minutes</label>
+                        </div>
+                        <div class="form-check d-flex align-items-center mb-2">
+                            <input class="form-check-input me-2" id="schedule2" name="txInterval" type="radio" onchange='sendScheduleState("schedule2")'>
+                            <label class="form-check-label mb-0" for="schedule2">4 minutes</label>
+                        </div>
+                        <div class="form-check d-flex align-items-center mb-2">
+                            <input class="form-check-input me-2" id="schedule3" name="txInterval" type="radio" onchange='sendScheduleState("schedule3")'>
+                            <label class="form-check-label mb-0" for="schedule3">6 minutes</label>
+                        </div>
+                        <div class="form-check d-flex align-items-center mb-2">
+                            <input class="form-check-input me-2" id="schedule4" name="txInterval" type="radio" onchange='sendScheduleState("schedule4")'>
+                            <label class="form-check-label mb-0" for="schedule4">8 minutes</label>
+                        </div>
+                        <div class="form-check d-flex align-items-center mb-3">
+                            <input class="form-check-input me-2" id="schedule5" name="txInterval" type="radio" onchange='sendScheduleState("schedule5")'>
+                            <label class="form-check-label mb-0" for="schedule5">10 minutes</label>
+                        </div>
+                        <div class="row align-items-center g-0">
+                            <div class="text-center" id="WSPRclock" style="text-align:center;margin-top:10px"></div>
                         </div>
                     </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6">
-                        <h4 style="text-align:center">&nbsp;Power (mW)</h4>
-                        <div class="mb-3 d-flex justify-content-center">
-                            <input class="form-control custom-input" id="power" maxlength="5" oninput="validatePower()"
-                                   style="text-align: center;">
+                    <div class="col-4 col-lg-4 col-md-4 col-sm-4 col-xl-4 col-xxl-4" data-pg-collapsed>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h4>Callsign</h4>
+                                <div class="mb-3">
+                                    <input class="form-control" id="callsign" maxlength="6" oninput="validateCallsign()" style="text-align: center;">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h4>Locator</h4>
+                                <div class="mb-3">
+                                    <input class="form-control" id="locator" maxlength="6" oninput="validateLocator()" style="text-align: center;">
+                                </div>
+                            </div>
                         </div>
-                        <p id="powerdbm" style="text-align:center;margin-top:5px;font-style:italic;font-size:12px">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h4 style="text-align:center">&nbsp;Power (mW)</h4>
+                                <div class="mb-3 d-flex justify-content-center">
+                                    <input class="form-control custom-input" id="power" maxlength="5" oninput="validatePower()" style="text-align: center;">
+                                </div>
+                                <p id="powerdbm" style="text-align:center;margin-top:5px;font-style:italic;font-size:12px">
                             ..dBm</p>
-                    </div>
-                    <div class="col-md-6">
-                        <img class="img-fluid text-center d-none d-md-block" src="assets/wsprlogo.png"
-                             style="max-width:100%;height:auto">
-                    </div>
-                </div>
-                <div class="container mt-auto">
-                    <div class="row justify-content-center">
-                        <div class="col-12 col-md-auto d-flex flex-column align-items-center">
-                            <button class="btn btn-success custom-button mb-2" onclick="rebootESP32()" type="button">
-                                Reboot
-                            </button>
-                            <button class="btn btn-danger d-none d-md-block  custom-button"
-                                    onclick="window.location.href='calibrate.html';" type="button">Calibrate VFO
-                            </button>
-                            <table class="d-none d-md-block table table-borderless table-sm text-center mt-4"
-                                   style="margin-bottom:0">
-                                <tbody>
-                                <tr data-pg-collapsed style="line-height:1.5">
-                                    <td style="  padding:0"><h3 id="UTCDigitalClock"
-                                                                style="font-family:'Share Tech Mono',monospace;font-size:27px;font-weight:700;text-align:right;margin:0;padding-right:15px">
+                            </div>
+                            <div class="col-md-6">
+                                <img class="img-fluid text-center d-none d-md-block" src="assets/wsprlogo.png" style="max-width:100%;height:auto">
+                            </div>
+                        </div>
+                        <div class="container mt-auto">
+                            <div class="row justify-content-center">
+                                <div class="col-12 col-md-auto d-flex flex-column align-items-center">
+                                    <button class="btn btn-success custom-button mb-2" onclick="rebootESP32()" type="button">
+                                        Reboot
+</button>
+                                    <button class="btn btn-danger d-none d-md-block  custom-button" onclick="window.location.href='calibrate.html';" type="button">Calibrate VFO
+</button>
+                                    <table class="d-none d-md-block table table-borderless table-sm text-center mt-4" style="margin-bottom:0">
+                                        <tbody>
+                                            <tr data-pg-collapsed style="line-height:1.5">
+                                                <td style="  padding:0"><h3 id="UTCDigitalClock" style="font-family:'Share Tech Mono',monospace;font-size:27px;font-weight:700;text-align:right;margin:0;padding-right:15px">
                                         00:00:00 </h3></td>
-                                    <th style="font-size:22px;text-align:left;padding:0;margin:0;vertical-align:middle">
-                                        UTC
-                                    </th>
-                                </tr>
-                                <tr data-pg-collapsed style="line-height:1.5">
-                                    <td style="padding:0"><h3 id="LocalDigitalClock"
-                                                              style="font-family:'Share Tech Mono',monospace;font-size:27px;font-weight:700;text-align:right;margin:0;line-height:1.5;padding-right:15px">
+                                                <th style="font-size:22px;text-align:left;padding:0;margin:0;vertical-align:middle">
+                                        UTC </th>
+                                            </tr>
+                                            <tr data-pg-collapsed style="line-height:1.5">
+                                                <td style="padding:0"><h3 id="LocalDigitalClock" style="font-family:'Share Tech Mono',monospace;font-size:27px;font-weight:700;text-align:right;margin:0;line-height:1.5;padding-right:15px">
                                         00:00:00 </h3></td>
-                                    <th style="font-size:22px;text-align:left;padding:0;margin:0;vertical-align:middle;line-height:1.5">
-                                        Local
-                                    </th>
-                                </tr>
-                                </tbody>
-                            </table>
+                                                <th style="font-size:22px;text-align:left;padding:0;margin:0;vertical-align:middle;line-height:1.5">
+                                        Local </th>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+                <div class="row" data-pg-collapsed>
+                    <h4 id="progressText">Waiting for next transmission slot</h4>
+                </div>
+                <div class="row progress-container" data-pg-collapsed id="greenProgressContainer">
+                    <div class="g-0 progress mx-auto">
+                        <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0" class="progress-bar bg-success progress-bar-striped" id="progressBar" role="progressbar" style="width:0%">
+                            <span id="progressLabel"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row progress-container" data-pg-collapsed id="redProgressContainer">
+                    <div class="g-0 progress mx-auto">
+                        <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0" class="progress-bar bg-danger progress-bar-striped" id="TXprogressBAR" role="progressbar" style="width:0%">
+                            <span id="TXProgressLabel"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row" data-pg-collapsed>
+                    <div class="container d-flex justify-content-center">
+                        <div id="map" style="margin-top:15px"></div>
+                    </div>
+                </div>
+                <div class="row" data-pg-collapsed>
+                    <div class="container d-flex justify-content-center">
+                        <div id="cesiumContainer"></div>
+                    </div>
+                </div>
+                <div id="alertPlaceholder"></div>
+                <div class="row" data-pg-collapsed>
+                    <div aria-label="Basic example" class="btn-group" role="group">
+                        <button class="btn btn-secondary" onclick="filterByBand(7)" type="button">40 m</button>
+                        <button class="btn btn-secondary" onclick="filterByBand(10)" type="button">30 m</button>
+                        <button class="btn btn-secondary" onclick="filterByBand(14)" type="button">20 m</button>
+                        <button class="btn btn-secondary" onclick="filterByBand(21)" type="button">15 m</button>
+                        <button class="btn btn-secondary" onclick="filterByBand(24)" type="button">12 m</button>
+                        <button class="btn btn-secondary" onclick="filterByBand(28)" type="button">10 m</button>
+                    </div>
+                    <div class="container mt-5">
+                        <div id="results"></div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-center mt-5" data-pg-collapsed id="loadingSpinner">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+        <footer class="footer mt-auto py-3 bg-light" data-pg-collapsed>
+            <div class="container"><span class="text-muted">HB9IIU May 2025</span>
+            </div>
+        </footer>
+        <div id="overlay">
+            <div id="overlay-content">
+                <div class="spinner"></div>
+                <div>Please wait, rebooting...</div>
             </div>
         </div>
-        <div class="row" data-pg-collapsed>
-            <h4 id="progressText">Waiting for next transmission slot</h4>
-        </div>
-        <div class="row progress-container" data-pg-collapsed id="greenProgressContainer">
-            <div class="g-0 progress mx-auto">
-                <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0"
-                     class="progress-bar bg-success progress-bar-striped" id="progressBar" role="progressbar"
-                     style="width:0%">
-                    <span id="progressLabel"></span>
+        <div aria-hidden="true" aria-labelledby="factoryResetModalLabel" class="modal fade" id="factoryResetModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header d-flex flex-column align-items-center">
+                        <h5 class="modal-title" id="factoryResetModalLabel">Factory Reset Confirmation</h5>
+                        <img alt="Logo" class="modal-logo mt-2" src="assets/warning.png">
+                        <button aria-label="Close" class="btn-close" data-bs-dismiss="modal" type="button"></button>
+                    </div>
+                    <div class="modal-body">
+                        By clicking Yes, the ESP32 will be reset to factory default settings, meaning that all configurations
+                        will be lost. A reconfiguration via AP (network: HB9IIU-WSPR-CONFIG, IP: 192.168.4.1) will be required.
+                        Do you want to proceed?
+</div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancel</button>
+                        <button class="btn btn-primary" id="confirmFactoryReset" type="button">Yes</button>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="row progress-container" data-pg-collapsed id="redProgressContainer">
-            <div class="g-0 progress mx-auto">
-                <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0"
-                     class="progress-bar bg-danger progress-bar-striped" id="TXprogressBAR" role="progressbar"
-                     style="width:0%">
-                    <span id="TXProgressLabel"></span>
-                </div>
-            </div>
-        </div>
-        <div class="row" data-pg-collapsed>
-            <div class="container d-flex justify-content-center">
-                <div id="map" style="margin-top:15px"></div>
-            </div>
-        </div>
-        <div class="row" data-pg-collapsed>
-            <div class="container d-flex justify-content-center">
-                <div id="cesiumContainer"></div>
-            </div>
-        </div>
-        <div id="alertPlaceholder"></div>
-        <div class="row" data-pg-collapsed>
-            <div aria-label="Basic example" class="btn-group" role="group">
-                <button class="btn btn-secondary" onclick="filterByBand(7)" type="button">40 m</button>
-                <button class="btn btn-secondary" onclick="filterByBand(10)" type="button">30 m</button>
-                <button class="btn btn-secondary" onclick="filterByBand(14)" type="button">20 m</button>
-                <button class="btn btn-secondary" onclick="filterByBand(21)" type="button">15 m</button>
-                <button class="btn btn-secondary" onclick="filterByBand(24)" type="button">12 m</button>
-                <button class="btn btn-secondary" onclick="filterByBand(28)" type="button">10 m</button>
-            </div>
-            <div class="container mt-5">
-                <div id="results"></div>
-            </div>
-        </div>
-        <div class="d-flex justify-content-center mt-5" data-pg-collapsed id="loadingSpinner">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-        </div>
-    </div>
-</main>
-<footer class="footer mt-auto py-3 bg-light" data-pg-collapsed>
-    <div class="container"><span class="text-muted">HB9IIU May 2025</span>
-    </div>
-</footer>
-<div id="overlay">
-    <div id="overlay-content">
-        <div class="spinner"></div>
-        <div>Please wait, rebooting...</div>
-    </div>
-</div>
-<div aria-hidden="true" aria-labelledby="factoryResetModalLabel" class="modal fade" id="factoryResetModal"
-     tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header d-flex flex-column align-items-center">
-                <h5 class="modal-title" id="factoryResetModalLabel">Factory Reset Confirmation</h5>
-                <img alt="Logo" class="modal-logo mt-2" src="assets/warning.png">
-                <button aria-label="Close" class="btn-close" data-bs-dismiss="modal" type="button"></button>
-            </div>
-            <div class="modal-body">
-                By clicking Yes, the ESP32 will be reset to factory default settings, meaning that all configurations
-                will be lost. A reconfiguration via AP (network: HB9IIU-WSPR-CONFIG, IP: 192.168.4.1) will be required.
-                Do you want to proceed?
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancel</button>
-                <button class="btn btn-primary" id="confirmFactoryReset" type="button">Yes</button>
-            </div>
-        </div>
-    </div>
-</div>
-<div id="blockerOverlay" style="
+        <div id="blockerOverlay" style="
   position: fixed;
   top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(0, 0, 0, 0.75);
@@ -562,27 +524,25 @@
   font-size: 1.5em;
   text-align: center;
 ">
-    <div id="blockerMessage">Mode not supported.</div>
-</div>
-<script crossorigin="anonymous"
-        src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-<script crossorigin="" src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet.geodesic"></script>
-<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.114.0/Cesium.js"></script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>let map, viewer, txSign = "NOCALL", HomeTXLat, HomeTXLon
+            <div id="blockerMessage">Mode not supported.</div>
+        </div>
+        <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script crossorigin="" src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/leaflet.geodesic"></script>
+        <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.114.0/Cesium.js"></script>
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script>let map, viewer, txSign = "NOCALL", HomeTXLat, HomeTXLon
 const bandIndexToId = {
-    0: "chk-160m",
-    1: "chk-80m",
-    2: "chk-40m",
-    3: "chk-30m",
-    4: "chk-20m",
-    5: "chk-17m",
-    6: "chk-15m",
-    7: "chk-12m",
-    8: "chk-10m",
-    9: "chk-6m"
+    0: "chk-80m",
+    1: "chk-40m",
+    2: "chk-30m",
+    3: "chk-20m",
+    4: "chk-17m",
+    5: "chk-15m",
+    6: "chk-12m",
+    7: "chk-10m",
+    8: "chk-6m"
 };
 
 // Uncheck all, then check enabled bands
@@ -648,6 +608,29 @@ function sendUpdatedBands() {
         });
 }
 
+// Attach change event to all checkboxes
+
+
+/*
+function updateBandCheckboxDisplay(selectedBands) {
+const allBands = ["80m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m"];
+allBands.forEach(band => {
+const freqDiv = document.getElementById("freq-" + band + "-cb");
+if (freqDiv) {
+    if (selectedBands.includes(band)) {
+        freqDiv.classList.remove("text-danger");
+        freqDiv.classList.add("text-success");
+    } else {
+        freqDiv.classList.remove("text-success");
+        freqDiv.classList.add("text-danger");
+    }
+}
+});
+}
+
+*/
+
+
 function initializeCesium(e) {
     Cesium.Ion.defaultAccessToken = e, viewer = new Cesium.Viewer("cesiumContainer", {
         imageryProvider: Cesium.createWorldImagery(),
@@ -677,7 +660,6 @@ function sendPower() {
 
 function highlightBandSelection(frequencyHz, mode) {
     const bandMap = {
-        1836600: "160m",
         3570000: "80m",
         7040000: "40m",
         10140100: "30m",
@@ -763,7 +745,6 @@ function updateProgressBar() {
                 progressBar.setAttribute("aria-valuenow", t);
                 progressLabel.textContent = formatTimeForProgressBarLabel(t);
                 progressText.textContent = "Waiting for next transmission slot";
-                console.log(o);
                 highlightBandSelection(o, "waiting");
 
 
@@ -776,8 +757,6 @@ function updateProgressBar() {
                 txProgressBar.setAttribute("aria-valuenow", n);
                 txProgressLabel.textContent = formatTimeForProgressBarLabel(n);
                 progressText.textContent = "Transmitting";
-                console.log(o);
-
                 highlightBandSelection(o, "transmitting");
 
 
@@ -1268,105 +1247,104 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 </script>
-<script>
+        <script>
     $(document).ready((function () {
         const clockContainer = document.getElementById("WSPRclock");
         const maxClockSize = Math.min(clockContainer.offsetWidth, window.innerHeight / 3);
 
         $("#WSPRclock").thooClock({
-            size: maxClockSize,
-            brandTextSizeFactor: 15,
-            brandTextYOffset: 8,
-            brandText2SizeFactor: 24,
-            brandText2YOffset: 5.5
-        })
-    })), function (e) {
-        e.fn.thooClock = function (t) {
-            return this.each((function () {
-                const n = this, o = {
-                    size: 250,
-                    dialColor: "#000",
-                    dialBackgroundColor: "transparent",
-                    secondHandColor: "#ff0202",
-                    minuteHandColor: "#222",
-                    hourHandColor: "#222",
-                    timeCorrection: {operator: "+", hours: 0, minutes: 0},
-                    showNumerals: !0,
-                    numerals: Array.from({length: 12}, ((e, t) => ({[t + 1]: t + 1}))),
-                    sweepingMinutes: !0,
-                    sweepingSeconds: !0,
-                    numeralFont: "arial",
-                    brandFont: "arial",
-                    brandText: "WSPR Beacon",
-                    brandText2: "By HB9IIU",
-                    brandTextSizeFactor: 28,
-                    brandTextYOffset: 4,
-                    brandText2SizeFactor: 44,
-                    brandText2YOffset: 5
-                }, s = e.extend({}, o, t);
-                Object.assign(n, s);
-                const r = document.createElement("canvas"), a = r.getContext("2d");
-                r.width = n.size, r.height = n.size, e(r).appendTo(n);
-                const i = parseInt(n.size / 2, 10);
-                a.translate(i, i);
-                const l = e => Math.PI / 180 * e;
+        size: maxClockSize,
+        brandTextSizeFactor: 15,
+        brandTextYOffset: 8,
+        brandText2SizeFactor: 24,
+        brandText2YOffset: 5.5
+    })
+})), function (e) {
+    e.fn.thooClock = function (t) {
+        return this.each((function () {
+            const n = this, o = {
+                size: 250,
+                dialColor: "#000",
+                dialBackgroundColor: "transparent",
+                secondHandColor: "#ff0202",
+                minuteHandColor: "#222",
+                hourHandColor: "#222",
+                timeCorrection: {operator: "+", hours: 0, minutes: 0},
+                showNumerals: !0,
+                numerals: Array.from({length: 12}, ((e, t) => ({[t + 1]: t + 1}))),
+                sweepingMinutes: !0,
+                sweepingSeconds: !0,
+                numeralFont: "arial",
+                brandFont: "arial",
+                brandText: "WSPR Beacon",
+                brandText2: "By HB9IIU",
+                brandTextSizeFactor: 28,
+                brandTextYOffset: 4,
+                brandText2SizeFactor: 44,
+                brandText2YOffset: 5
+            }, s = e.extend({}, o, t);
+            Object.assign(n, s);
+            const r = document.createElement("canvas"), a = r.getContext("2d");
+            r.width = n.size, r.height = n.size, e(r).appendTo(n);
+            const i = parseInt(n.size / 2, 10);
+            a.translate(i, i);
+            const l = e => Math.PI / 180 * e;
 
-                function d(e) {
-                    a.beginPath(), a.moveTo(0, 0), a.lineTo(0, -e), a.stroke()
-                }
+            function d(e) {
+                a.beginPath(), a.moveTo(0, 0), a.lineTo(0, -e), a.stroke()
+            }
 
-                !function e() {
-                    const t = new Date, o = n.timeCorrection;
-                    o && (t.setHours(t.getHours() + ("+" === o.operator ? o.hours : -o.hours)), t.setMinutes(t.getMinutes() + ("+" === o.operator ? o.minutes : -o.minutes)));
-                    const s = t.getSeconds(), r = n.sweepingSeconds ? t.getMilliseconds() : 0,
-                        c = t.getMinutes() + s / 60,
-                        f = function (e) {
-                            return e >= 12 ? e - 12 : e
-                        }(t.getHours() + c / 60);
-                    a.clearRect(-i, -i, n.size, n.size), function () {
-                        const e = i - n.size / 50, t = i - n.size / 400;
-                        a.beginPath(), a.arc(0, 0, t, 0, 2 * Math.PI), a.fillStyle = n.dialBackgroundColor, a.fill();
-                        for (let t = 1; t <= 60; t++) {
-                            const o = Math.PI / 30 * t, s = Math.sin(o), r = Math.cos(o), i = t / 5;
-                            a.beginPath(), a.strokeStyle = n.dialColor, a.lineCap = "round", a.lineWidth = t % 5 == 0 ? parseInt(n.size / 50, 10) : parseInt(n.size / 100, 10);
-                            const l = s * (e - e / 4.2), d = r * -(e - e / 4.2);
-                            t % 5 == 0 && n.showNumerals && n.numerals.forEach((e => {
-                                if (i === parseInt(Object.keys(e)[0], 10)) {
-                                    const t = e[i], o = parseInt(n.size / 13, 10);
-                                    a.font = `100 ${o}px ${n.numeralFont}`;
-                                    const s = a.measureText(t).width;
-                                    a.fillStyle = n.dialColor, a.fillText(t, l - s / 2, d)
-                                }
-                            }));
-                            const c = s * (t % 5 == 0 ? e - e / 9 : e - e / 20),
-                                f = r * -(t % 5 == 0 ? e - e / 9 : e - e / 20), u = s * e, h = r * -e;
-                            a.moveTo(c, f), a.lineTo(u, h), a.stroke()
-                        }
-                        if (n.brandText) {
-                            const e = parseInt(n.size / n.brandTextSizeFactor, 10);
-                            a.font = `100 ${e}px ${n.brandFont}`;
-                            const t = a.measureText(n.brandText).width;
-                            a.fillText(n.brandText, -t / 2, n.size / n.brandTextYOffset)
-                        }
-                        if (n.brandText2) {
-                            const e = parseInt(n.size / n.brandText2SizeFactor, 10);
-                            a.textBaseline = "middle", a.font = `100 ${e}px ${n.brandFont}`;
-                            const t = a.measureText(n.brandText2).width;
-                            a.fillText(n.brandText2, -t / 2, n.size / n.brandText2YOffset)
-                        }
-                    }(), function (e) {
-                        const t = n.size / 3;
-                        a.save(), a.lineWidth = parseInt(n.size / 25, 10), a.lineCap = "round", a.strokeStyle = n.hourHandColor, a.rotate(l(30 * e)), a.shadowColor = "rgba(0,0,0,.5)", a.shadowBlur = parseInt(n.size / 50, 10), a.shadowOffsetX = parseInt(n.size / 300, 10), a.shadowOffsetY = parseInt(n.size / 300, 10), d(t), a.restore()
-                    }(f), function (e) {
-                        const t = n.size / 2.2;
-                        a.save(), a.lineWidth = parseInt(n.size / 50, 10), a.lineCap = "round", a.strokeStyle = n.minuteHandColor, a.rotate(l(6 * e)), a.shadowColor = "rgba(0,0,0,.5)", a.shadowBlur = parseInt(n.size / 50, 10), a.shadowOffsetX = parseInt(n.size / 250, 10), a.shadowOffsetY = parseInt(n.size / 250, 10), d(t), a.restore()
-                    }(c), function (e, t) {
-                        const o = i - n.size / 40;
-                        a.save(), a.lineWidth = parseInt(n.size / 150, 10), a.lineCap = "round", a.strokeStyle = n.secondHandColor, a.rotate(l(.006 * e + 6 * t)), a.shadowColor = "rgba(0,0,0,.5)", a.shadowBlur = parseInt(n.size / 80, 10), a.shadowOffsetX = parseInt(n.size / 200, 10), a.shadowOffsetY = parseInt(n.size / 200, 10), d(o), a.beginPath(), a.arc(0, 0, parseInt(n.size / 30, 10), 0, 2 * Math.PI), a.fillStyle = n.secondHandColor, a.fill(), a.restore()
-                    }(r, s), requestAnimationFrame(e)
-                }()
-            })), this
-        }
-    }(jQuery)</script>
-</body>
+            !function e() {
+                const t = new Date, o = n.timeCorrection;
+                o && (t.setHours(t.getHours() + ("+" === o.operator ? o.hours : -o.hours)), t.setMinutes(t.getMinutes() + ("+" === o.operator ? o.minutes : -o.minutes)));
+                const s = t.getSeconds(), r = n.sweepingSeconds ? t.getMilliseconds() : 0, c = t.getMinutes() + s / 60,
+                    f = function (e) {
+                        return e >= 12 ? e - 12 : e
+                    }(t.getHours() + c / 60);
+                a.clearRect(-i, -i, n.size, n.size), function () {
+                    const e = i - n.size / 50, t = i - n.size / 400;
+                    a.beginPath(), a.arc(0, 0, t, 0, 2 * Math.PI), a.fillStyle = n.dialBackgroundColor, a.fill();
+                    for (let t = 1; t <= 60; t++) {
+                        const o = Math.PI / 30 * t, s = Math.sin(o), r = Math.cos(o), i = t / 5;
+                        a.beginPath(), a.strokeStyle = n.dialColor, a.lineCap = "round", a.lineWidth = t % 5 == 0 ? parseInt(n.size / 50, 10) : parseInt(n.size / 100, 10);
+                        const l = s * (e - e / 4.2), d = r * -(e - e / 4.2);
+                        t % 5 == 0 && n.showNumerals && n.numerals.forEach((e => {
+                            if (i === parseInt(Object.keys(e)[0], 10)) {
+                                const t = e[i], o = parseInt(n.size / 13, 10);
+                                a.font = `100 ${o}px ${n.numeralFont}`;
+                                const s = a.measureText(t).width;
+                                a.fillStyle = n.dialColor, a.fillText(t, l - s / 2, d)
+                            }
+                        }));
+                        const c = s * (t % 5 == 0 ? e - e / 9 : e - e / 20),
+                            f = r * -(t % 5 == 0 ? e - e / 9 : e - e / 20), u = s * e, h = r * -e;
+                        a.moveTo(c, f), a.lineTo(u, h), a.stroke()
+                    }
+                    if (n.brandText) {
+                        const e = parseInt(n.size / n.brandTextSizeFactor, 10);
+                        a.font = `100 ${e}px ${n.brandFont}`;
+                        const t = a.measureText(n.brandText).width;
+                        a.fillText(n.brandText, -t / 2, n.size / n.brandTextYOffset)
+                    }
+                    if (n.brandText2) {
+                        const e = parseInt(n.size / n.brandText2SizeFactor, 10);
+                        a.textBaseline = "middle", a.font = `100 ${e}px ${n.brandFont}`;
+                        const t = a.measureText(n.brandText2).width;
+                        a.fillText(n.brandText2, -t / 2, n.size / n.brandText2YOffset)
+                    }
+                }(), function (e) {
+                    const t = n.size / 3;
+                    a.save(), a.lineWidth = parseInt(n.size / 25, 10), a.lineCap = "round", a.strokeStyle = n.hourHandColor, a.rotate(l(30 * e)), a.shadowColor = "rgba(0,0,0,.5)", a.shadowBlur = parseInt(n.size / 50, 10), a.shadowOffsetX = parseInt(n.size / 300, 10), a.shadowOffsetY = parseInt(n.size / 300, 10), d(t), a.restore()
+                }(f), function (e) {
+                    const t = n.size / 2.2;
+                    a.save(), a.lineWidth = parseInt(n.size / 50, 10), a.lineCap = "round", a.strokeStyle = n.minuteHandColor, a.rotate(l(6 * e)), a.shadowColor = "rgba(0,0,0,.5)", a.shadowBlur = parseInt(n.size / 50, 10), a.shadowOffsetX = parseInt(n.size / 250, 10), a.shadowOffsetY = parseInt(n.size / 250, 10), d(t), a.restore()
+                }(c), function (e, t) {
+                    const o = i - n.size / 40;
+                    a.save(), a.lineWidth = parseInt(n.size / 150, 10), a.lineCap = "round", a.strokeStyle = n.secondHandColor, a.rotate(l(.006 * e + 6 * t)), a.shadowColor = "rgba(0,0,0,.5)", a.shadowBlur = parseInt(n.size / 80, 10), a.shadowOffsetX = parseInt(n.size / 200, 10), a.shadowOffsetY = parseInt(n.size / 200, 10), d(o), a.beginPath(), a.arc(0, 0, parseInt(n.size / 30, 10), 0, 2 * Math.PI), a.fillStyle = n.secondHandColor, a.fill(), a.restore()
+                }(r, s), requestAnimationFrame(e)
+            }()
+        })), this
+    }
+}(jQuery)</script>
+    </body>
 </html>
