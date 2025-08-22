@@ -776,7 +776,6 @@ function updateProgressBar() {
                 txProgressBar.setAttribute("aria-valuenow", n);
                 txProgressLabel.textContent = formatTimeForProgressBarLabel(n);
                 progressText.textContent = "Transmitting";
-                console.log(o);
 
                 highlightBandSelection(o, "transmitting");
 
@@ -821,22 +820,6 @@ function sendLocator() {
     t.open("GET", "/updateLocator?locator=" + e, !0), t.send()
 }
 
-function pollModeAndReload() {
-    setInterval(() => {
-        console.log("Checking again if in WSPR mode....")
-        fetch("/getModeOfOperation")
-            .then(res => res.json())
-            .then(data => {
-                const mode = parseInt(data.modeOfOperation);
-                if (mode === 2) {
-                    location.reload(); // ✅ Mode is now correct — reload page
-                }
-            })
-            .catch(err => {
-                console.error("Error polling modeOfOperation:", err);
-            });
-    }, 3000); // ⏱️ Every 3 seconds
-}
 
 async function fetchData() {
     console.log("txSign:", txSign);
@@ -1129,33 +1112,6 @@ function showNoRecordsAlert() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-
-
-    fetch("/getModeOfOperation")
-        .then(res => res.json())
-        .then(data => {
-            const mode = parseInt(data.modeOfOperation); // ensure it's a number
-            console.log("Mode of Operation:", mode);
-
-            if (mode !== 2) {
-                const blocker = document.getElementById("blockerOverlay");
-                const msg = document.getElementById("blockerMessage");
-
-                blocker.style.display = "flex";
-                msg.textContent = "Please switch the device to WSPR mode (Menu option 2) before using this page.";
-
-                pollModeAndReload(); // 👈 Add this line
-            }
-
-
-        })
-        .catch(err => {
-            console.error("Error fetching modeOfOperation:", err);
-            // Optional: show a blocker if the fetch fails
-            //document.getElementById("blockerOverlay").style.display = "flex";
-            // document.getElementById("blockerMessage").textContent = "Unable to determine mode of operation.";
-        });
-
 
     // Hide overlay initially
     document.getElementById("overlay").style.display = "none";

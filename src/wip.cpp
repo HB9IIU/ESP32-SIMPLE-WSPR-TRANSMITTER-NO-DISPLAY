@@ -32,7 +32,7 @@ const char *ssid = "MESH";
 const char *password = "Nestle2010Nestle";
 const char *hostname = "wspr";
 
-bool TEST=true;
+bool TEST = true;
 
 // Globals for DHCP-learned values
 IPAddress dhcp_ip;
@@ -70,7 +70,7 @@ unsigned long long TX_referenceFrequ = 0;
 TaskHandle_t txCounterTaskHandle = NULL;
 unsigned long lastGPSretry = 0;
 const unsigned long timeReSynchInterval = 5 * 60 * 1000; // 5 minutes
-time_t lastManualSync = 0;                                // Last time we did a manual sync
+time_t lastManualSync = 0;                               // Last time we did a manual sync
 bool performCalibration = false;
 bool calibrationStarted = false;
 // Timing variables
@@ -82,7 +82,6 @@ time_t nextPosixTxTime;
 time_t currentRemainingSeconds;
 time_t intervalBetweenTx;
 
-int modeOfOperation = 2;    // inherited from MLA toolbox
 byte selectedBandIndex = 3; // inherited from MLA toolbox
 unsigned long now;
 // TX status
@@ -120,6 +119,7 @@ String latLonToMaidenhead(float lat, float lon);
 bool connectToWiFi_DHCP_then_Static();
 byte getNextEnabledBandIndex(byte currentIndex);
 byte getFirstEnabledBandIndex();
+
 // ################################################################################################
 // Prototype declarations
 // related to WSPR
@@ -169,6 +169,9 @@ void setup()
 
     // Retrieve user settings
     retrieveUserSettings();
+
+
+
     if (!syncTimeFromGPS())
     {
         initialTimeSyncViaSNTP(); // your existing SNTP fallback
@@ -184,7 +187,6 @@ void setup()
     Serial.printf("🎯 Starting on first enabled band: %s (%d)\n", WSPRbandNames[selectedBandIndex], selectedBandIndex);
 }
 //---------------------------------------------------------------------------------------------
-
 
 void loop()
 {
@@ -366,7 +368,6 @@ void initSI5351()
     Serial.println("");
 }
 
-
 void initializeNextTransmissionTime()
 {
 
@@ -399,8 +400,8 @@ void initializeNextTransmissionTime()
     }
 
     // ✅ Log the Result
-    //Serial.print("📅 Next Transmission Time (POSIX): ");
-    //Serial.println(nextPosixTxTime);
+    // Serial.print("📅 Next Transmission Time (POSIX): ");
+    // Serial.println(nextPosixTxTime);
     Serial.print("🕑 Next TX Time:  ");
     Serial.println(convertPosixToHHMMSS(nextPosixTxTime));
 }
@@ -569,23 +570,24 @@ void transmitWSPR()
         uint64_t toneFreq = WSPR_TX_operatingFrequ + (tx_buffer[i] * TONE_SPACING);
         si5351.set_freq(toneFreq, SI5351_CLK0);
 
-    int correction = 1;
-      if (TEST){
-    // Calculate percentage
-        float progress = ((float)(i + 1) / SYMBOL_COUNT) * 100.0;
-                // Print on the same line with percentage
-                Serial.printf("\r📡 Transmitting symbol %d of %d (%.0f%%)   ",
-                              i + 1, SYMBOL_COUNT, progress);
-                Serial.flush();
+        int correction = 1;
+        if (TEST)
+        {
+            // Calculate percentage
+            float progress = ((float)(i + 1) / SYMBOL_COUNT) * 100.0;
+            // Print on the same line with percentage
+            Serial.printf("\r📡 Transmitting symbol %d of %d (%.0f%%)   ",
+                          i + 1, SYMBOL_COUNT, progress);
+            Serial.flush();
 
-                if (interruptWSPRcurrentTX || performCalibration)
-                {
-                    Serial.println("\n⚠️ Ongoing transmission interrupted");
-                    return; // goes back to main loop
-                }
-correction=6;
-                yield();
-               }
+            if (interruptWSPRcurrentTX || performCalibration)
+            {
+                Serial.println("\n⚠️ Ongoing transmission interrupted");
+                return; // goes back to main loop
+            }
+            correction = 6;
+            yield();
+        }
         delay(WSPR_DELAY - correction); // 5from experiments
     }
     Serial.println(); // Move to a new line after completion
@@ -765,14 +767,7 @@ void configure_web_server()
 {
     Serial.println("🌍 Starting Web Server Route Configuration...");
 
-    server.on("/getModeOfOperation", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    JsonDocument doc;
-    doc["modeOfOperation"] = modeOfOperation;
 
-    String jsonResponse;
-    serializeJson(doc, jsonResponse);
-    request->send(200, "application/json", jsonResponse); });
 
     // Root and static pages
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -805,7 +800,6 @@ void configure_web_server()
               {
                   JsonDocument doc;
                   JsonArray arr = doc["selectedBands"].to<JsonArray>();
-
 
                   for (int i = 0; i < numWSPRbands; i++)
                   {
@@ -1238,8 +1232,6 @@ bool syncTimeFromGPS()
     return false;
 }
 
-
-
 String latLonToMaidenhead(float lat, float lon)
 {
     char maiden[7];
@@ -1262,7 +1254,7 @@ bool connectToWiFi_DHCP_then_Static()
 {
     Serial.println("📡 Connecting to Wi-Fi in DHCP mode...");
     WiFi.mode(WIFI_STA);
-    WiFi.setHostname(hostname); 
+    WiFi.setHostname(hostname);
     WiFi.begin(ssid, password);
 
     unsigned long startAttemptTime = millis();
@@ -1283,7 +1275,6 @@ bool connectToWiFi_DHCP_then_Static()
     dhcp_gateway = WiFi.gatewayIP();
     dhcp_subnet = WiFi.subnetMask();
     IPAddress secondaryDNS = WiFi.dnsIP(0);
-
 
     Serial.println("\n✅ Connected via DHCP:");
     Serial.print("   📍 IP Address : ");
@@ -1425,6 +1416,8 @@ byte getNextEnabledBandIndex(byte currentIndex)
     return nextIndex;
 }
 
+
+
 byte getFirstEnabledBandIndex()
 {
     for (byte i = 0; i < numWSPRbands; i++)
@@ -1434,3 +1427,6 @@ byte getFirstEnabledBandIndex()
     }
     return 0; // fallback to 0 if none are enabled
 }
+
+
+
