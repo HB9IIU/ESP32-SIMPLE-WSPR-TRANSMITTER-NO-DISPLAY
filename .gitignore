@@ -42,9 +42,6 @@ Desktop.ini
 .idea/
 *.code-workspace
 
-# Custom: user-ignored local config or secret files
-secrets.h
-wifi_config.h
 
 
 
