@@ -1,7 +1,6 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <LittleFS.h>
-#define FILESYSTEM LittleFS
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include "Preferences.h"
@@ -13,6 +12,7 @@
 #include <ArduinoJson.h>
 #include <ESPmDNS.h> // Library to enable mDNS (Multicast DNS) for resolving local hostnames like "device.local"
 #include <TinyGPS++.h>
+#define FILESYSTEM LittleFS
 #define SI5351_SDA 25
 #define SI5351_SCL 26
 #define GPS_RX 16             // GPS TX → ESP32 RX2
@@ -40,7 +40,7 @@ IPAddress dhcp_gateway;
 IPAddress dhcp_subnet;
 
 // Static DNS (hardcoded)
-IPAddress secondaryDNS(1, 1, 1, 1); // 🔵 Cloudflare DNS
+IPAddress primaryDNS(1, 1, 1, 1); // 🔵 Cloudflare DNS
 
 const int maxWiFiConnectionAttempts = 5; // Maximum number of attempts to connect
 
@@ -1261,7 +1261,7 @@ bool connectToWiFi_DHCP_then_Static()
 {
     Serial.println("📡 Connecting to Wi-Fi in DHCP mode...");
     WiFi.mode(WIFI_STA);
-    WiFi.setHostname(hostname); // Apply hostname before connecting
+    WiFi.setHostname(hostname); 
     WiFi.begin(ssid, password);
 
     unsigned long startAttemptTime = millis();
@@ -1281,7 +1281,8 @@ bool connectToWiFi_DHCP_then_Static()
     dhcp_ip = WiFi.localIP();
     dhcp_gateway = WiFi.gatewayIP();
     dhcp_subnet = WiFi.subnetMask();
-    IPAddress primaryDNS = WiFi.dnsIP(0);
+    IPAddress secondaryDNS = WiFi.dnsIP(0);
+
 
     Serial.println("\n✅ Connected via DHCP:");
     Serial.print("   📍 IP Address : ");
