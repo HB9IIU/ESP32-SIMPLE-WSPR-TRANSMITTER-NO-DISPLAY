@@ -778,6 +778,9 @@ void configure_web_server()
 
     server.on("/calibrate.html", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(FILESYSTEM, "/calibrate.html", "text/html"); });
+  
+              server.on("/reporting.js", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(FILESYSTEM, "/reporting.js", "text/html"); });
 
     server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(FILESYSTEM, "/favicon.ico", "image/x-icon"); });
@@ -924,35 +927,53 @@ void configure_web_server()
     request->send(200, "application/json", json); });
 
     // 🔄 Settings update routes
-    server.on("/updateCallsign", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    if (request->hasParam("callsign")) {
-        String callsign = request->getParam("callsign")->value();
-        preferences.begin("settings", false);
-        preferences.putString("callsign", callsign);
-        preferences.end();
-        Serial.printf("📡 Callsign set to %s\n", callsign.c_str());
-
-        // Update the global variable
-        callsign.toCharArray(call, sizeof(call));
-    } });
-
-    server.on("/updateLocator", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-  if (request->hasParam("locator")) {
-    String locator = request->getParam("locator")->value();
-
-    // Update the global Maidenhead locator (first 6 chars)
-    strncpy(loc, locator.c_str(), 6);
-    loc[6] = '\0';
-
-    preferences.begin("settings", false);
-    preferences.putString("locator", locator);
-    preferences.end();
-
-    Serial.printf("📍 Locator set to %s\n", loc);
+server.on("/updateCallsign", HTTP_GET, [](AsyncWebServerRequest *request) {
+  if (!request->hasParam("callsign")) {
+    request->send(400, "text/plain", "Missing 'callsign' parameter");
+    return;
   }
-  request->send(200, "text/plain", "Locator updated"); });
+
+  String callsign = request->getParam("callsign")->value();
+  callsign.toUpperCase();                           // keep format consistent
+
+  preferences.begin("settings", false);
+  preferences.putString("callsign", callsign);
+  preferences.end();
+
+  // Update the global variable (truncate safely to buffer size)
+  callsign.toCharArray(call, sizeof(call));
+
+  Serial.printf("📡 Callsign set to %s\n", callsign.c_str());
+
+  // ✅ Send a response the frontend can log
+  request->send(200, "application/json",
+                String("{\"status\":\"ok\",\"callsign\":\"") +
+                callsign + "\"}");
+});
+
+
+server.on("/updateLocator", HTTP_GET, [](AsyncWebServerRequest *request) {
+  if (!request->hasParam("locator")) {
+    request->send(400, "application/json",
+                  "{\"status\":\"error\",\"message\":\"Missing 'locator' parameter\"}");
+    return;
+  }
+
+  String locator = request->getParam("locator")->value();
+
+  // --- Persist exactly what the client sent ---
+  strncpy(loc, locator.c_str(), 6);
+  loc[6] = '\0';
+
+  preferences.begin("settings", false);
+  preferences.putString("locator", locator);
+  preferences.end();
+
+  Serial.printf("📍 Locator set to %s\n", loc);
+
+  String body = String("{\"status\":\"ok\",\"locator\":\"") + locator + "\"}";
+  request->send(200, "application/json", body);
+});
 
     server.on("/updatePower", HTTP_GET, [](AsyncWebServerRequest *request)
               {
