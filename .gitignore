@@ -42,7 +42,8 @@ Desktop.ini
 .idea/
 *.code-workspace
 
-
+# macOS Finder files
+**/.DS_Store
 
 
 
