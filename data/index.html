@@ -25,7 +25,250 @@
         <script src="https://code.highcharts.com/modules/export-data.js"></script>
         <script src="https://code.highcharts.com/modules/accessibility.js"></script>
         <!-- ================== MAIN STYLES ================== -->
-        <style>/* General body and layout */body { font-family: Arial, sans-serif; margin: 20px; } .container { padding-left: 20px; padding-right: 20px; max-width: none; } /* Text formatting */#callsign { text-transform: uppercase; } #locator { text-transform: none; } input[type=text] { text-align: center; } .text-end { text-align: right; } .text-center, .center-text { text-align: center; } th, td { text-align: center; } /* Form controls */#power { width: 100px; } .search-box { width: 16ch; display: inline-block; } /* Progress bar */.progress { height: 30px; } .progress-container { display: none; } #progressLabel, #TXProgressLabel { font-size: 18px; font-weight: bold; color: white; } /* Custom buttons */.custom-button { max-width: 300px; width: 100%; font-size: 18px; } /* Modal logo */.modal-logo { width: 160px; height: 160px; } /* Toast (centered on screen) */.toast-container { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1100; } #warningToast { width: 100%; max-width: none; } /* Overlay (fullscreen dark background) */#overlay { position: fixed; display: none; width: 100%; height: 100%; top: 0; left: 0; background-color: rgba(0, 0, 0, .7); z-index: 9999; cursor: pointer; } #overlay-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #fff; font-size: 20px; } /* Spinners */.spinner, #loading-spinner { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 50%; animation: spin 2s linear infinite; } .spinner { width: 100px; height: 100px; border: 16px solid #f3f3f3; border-top: 16px solid #3498db; z-index: 1000; } #loading-spinner { width: 50px; height: 50px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; } @keyframes spin { 0% {  transform: rotate(0deg); }  100% {  transform: rotate(360deg); } } /* Blink animations */@keyframes blink-red { 0%, 100% {  background-color: red; }  50% {  background-color: transparent; } } @keyframes blink-green { 0%, 100% {  background-color: #198853; }  50% {  background-color: transparent; } } /* Cesium & Map containers */#cesiumContainer, #map { height: 600px; margin-bottom: 20px; } /* Slider */.slider { width: 100%; margin: 20px 0; } .noUi-tooltip { background: #000; color: #fff; padding: 5px 10px; border-radius: 5px; } .noUi-handle-lower .noUi-tooltip { top: 100%; transform: translateY(10px); } .noUi-handle-upper .noUi-tooltip { bottom: 100%; transform: translateY(-10px); } /* Legend box */.legend { background-color: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 15px rgba(0, 0, 0, 0.2); line-height: 1.6; } .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: .7; } .legend input[type=checkbox] { margin-right: 5px; } .legend .band-label { margin-left: 10px; } /* Table container with scroll */.table-container { height: 400px; overflow-y: auto; margin-bottom: 20px; } /* Chart area */#chart-container { width: 100%; height: 500px; margin-top: 20px; } /* Radio buttons */.radio-buttons { margin-top: 20px; } .radio-buttons label { margin-right: 15px; font-size: 16px; cursor: pointer; }</style>
+        <style>/* General body and layout */
+    body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+    }
+
+    .container {
+        padding-left: 20px;
+        padding-right: 20px;
+        max-width: none;
+    }
+
+    /* Text formatting */
+    #callsign {
+        text-transform: uppercase;
+    }
+
+    #locator {
+        text-transform: none;
+    }
+
+    input[type=text] {
+        text-align: center;
+    }
+
+    .text-end {
+        text-align: right;
+    }
+
+    .text-center, .center-text {
+        text-align: center;
+    }
+
+    th, td {
+        text-align: center;
+    }
+
+    /* Form controls */
+    #power {
+        width: 100px;
+    }
+
+    .search-box {
+        width: 16ch;
+        display: inline-block;
+    }
+
+    /* Progress bar */
+    .progress {
+        height: 30px;
+    }
+
+    .progress-container {
+        display: none;
+    }
+
+    #progressLabel, #TXProgressLabel {
+        font-size: 18px;
+        font-weight: bold;
+        color: white;
+    }
+
+    /* Custom buttons */
+    .custom-button {
+        max-width: 300px;
+        width: 100%;
+        font-size: 18px;
+    }
+
+    /* Modal logo */
+    .modal-logo {
+        width: 160px;
+        height: 160px;
+    }
+
+    /* Toast (centered on screen) */
+    .toast-container {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1100;
+    }
+
+    #NoCallsignWarningToast {
+        width: 100%;
+        max-width: none;
+    }
+
+    /* Overlay (fullscreen dark background) */
+    #overlay {
+        position: fixed;
+        display: none;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        background-color: rgba(0, 0, 0, .7);
+        z-index: 9999;
+        cursor: pointer;
+    }
+
+    #overlay-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        color: #fff;
+        font-size: 20px;
+    }
+
+    /* Spinners */
+    .spinner, #loading-spinner {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    .spinner {
+        width: 100px;
+        height: 100px;
+        border: 16px solid #f3f3f3;
+        border-top: 16px solid #3498db;
+        z-index: 1000;
+    }
+
+    #loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Blink animations */
+    @keyframes blink-red {
+        0%, 100% {
+            background-color: red;
+        }
+        50% {
+            background-color: transparent;
+        }
+    }
+
+    @keyframes blink-green {
+        0%, 100% {
+            background-color: #198853;
+        }
+        50% {
+            background-color: transparent;
+        }
+    }
+
+    /* Cesium & Map containers */
+    #cesiumContainer, #map {
+        height: 600px;
+        margin-bottom: 20px;
+    }
+
+    /* Slider */
+    .slider {
+        width: 100%;
+        margin: 20px 0;
+    }
+
+    .noUi-tooltip {
+        background: #000;
+        color: #fff;
+        padding: 5px 10px;
+        border-radius: 5px;
+    }
+
+    .noUi-handle-lower .noUi-tooltip {
+        top: 100%;
+        transform: translateY(10px);
+    }
+
+    .noUi-handle-upper .noUi-tooltip {
+        bottom: 100%;
+        transform: translateY(-10px);
+    }
+
+    /* Legend box */
+    .legend {
+        background-color: white;
+        padding: 10px;
+        border-radius: 5px;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        line-height: 1.6;
+    }
+
+    .legend i {
+        width: 18px;
+        height: 18px;
+        float: left;
+        margin-right: 8px;
+        opacity: .7;
+    }
+
+    .legend input[type=checkbox] {
+        margin-right: 5px;
+    }
+
+    .legend .band-label {
+        margin-left: 10px;
+    }
+
+    /* Table container with scroll */
+    .table-container {
+        height: 400px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+    }
+
+    /* Chart area */
+    #chart-container {
+        width: 100%;
+        height: 500px;
+        margin-top: 20px;
+    }
+
+    /* Radio buttons */
+    .radio-buttons {
+        margin-top: 20px;
+    }
+
+    .radio-buttons label {
+        margin-right: 15px;
+        font-size: 16px;
+        cursor: pointer;
+    }</style>
         <!-- ================== JS LIBRARIES ================== -->
         <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/nouislider/distribute/nouislider.min.js"></script>
@@ -38,15 +281,19 @@
 <body class="d-flex flex-column h-100">
     <header data-pg-collapsed>
         <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
-            <div class="container-fluid"><a class="navbar-brand" href="">Web WSPR Beacon</a>
+            <div class="container-fluid">
+                <a class="navbar-brand" href="">Web WSPR Beacon</a>
                 <button aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" class="navbar-toggler
-" data-bs-target="#navbarCollapse" data-bs-toggle="collapse" data-pg-collapsed type="button"><span class="navbar-toggler-icon"></span>
+" data-bs-target="#navbarCollapse" data-bs-toggle="collapse" data-pg-collapsed type="button">
+                    <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="collapse navbar-collapse" data-pg-collapsed id="navbarCollapse">
                     <ul class="navbar-nav me-auto mb-2 mb-md-0">
-                        <li class="nav-item"><a class="active nav-link" href="https://wspr.rocks/" target="_blank">wspr.rocks</a>
+                        <li class="nav-item">
+                            <a class="active nav-link" href="https://wspr.rocks/" target="_blank">wspr.rocks</a>
                         </li>
-                        <li class="nav-item"><a class="active nav-link" href="https://github.com/HB9IIU/ESP32-SIMPLE-WSPR-TRANSMITTER-NO-DISPLAY" target="_blank">gituHub</a>
+                        <li class="nav-item">
+                            <a class="active nav-link" href="https://github.com/HB9IIU/ESP32-SIMPLE-WSPR-TRANSMITTER-NO-DISPLAY" target="_blank">gituHub</a>
                         </li>
                     </ul>
                 </div>
@@ -69,8 +316,9 @@
                                 <div class="d-inline-flex align-items-center" id="wrap-160m">
                                     <input class="form-check-input me-2" id="chk-160m" type="checkbox" value="">
                                     <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-160m">
-                                        <label class="form-check-label me-2" for="chk-160m"><strong id="label-160m">160
-                                            m</strong>
+                                        <label class="form-check-label me-2" for="chk-160m">
+                                            <strong id="label-160m">160
+                                        m</strong>
                                         </label>
                                         <div id="freq-160m-cb">1.8 Mhz</div>
                                     </div>
@@ -85,8 +333,9 @@
                                 <div class="d-inline-flex align-items-center" id="wrap-80m">
                                     <input class="form-check-input me-2" id="chk-80m" type="checkbox" value="">
                                     <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-80m">
-                                        <label class="form-check-label me-2" for="chk-80m"><strong id="label-80m">80
-                                            m</strong>
+                                        <label class="form-check-label me-2" for="chk-80m">
+                                            <strong id="label-80m">80
+                                        m</strong>
                                         </label>
                                         <div id="freq-80m-cb">3.5 Mhz</div>
                                     </div>
@@ -100,8 +349,9 @@
                                 <div class="d-inline-flex align-items-center" id="wrap-40m">
                                     <input class="form-check-input me-2" id="chk-40m" type="checkbox" value="">
                                     <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-40m">
-                                        <label class="form-check-label me-2" for="chk-40m"><strong id="label-40m">40
-                                            m</strong>
+                                        <label class="form-check-label me-2" for="chk-40m">
+                                            <strong id="label-40m">40
+                                        m</strong>
                                         </label>
                                         <div id="freq-40m-cb">7.04 Mhz</div>
                                     </div>
@@ -115,8 +365,9 @@
                                 <div class="d-inline-flex align-items-center" id="wrap-30m">
                                     <input class="form-check-input me-2" id="chk-30m" type="checkbox" value="">
                                     <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-30m">
-                                        <label class="form-check-label me-2" for="chk-30m"><strong id="label-30m">30
-                                            m</strong>
+                                        <label class="form-check-label me-2" for="chk-30m">
+                                            <strong id="label-30m">30
+                                        m</strong>
                                         </label>
                                         <div id="freq-30m-cb">10.141 MHz</div>
                                     </div>
@@ -130,8 +381,9 @@
                                 <div class="d-inline-flex align-items-center" id="wrap-20m">
                                     <input class="form-check-input me-2" id="chk-20m" type="checkbox" value="">
                                     <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-20m">
-                                        <label class="form-check-label me-2" for="chk-20m"><strong id="label-20m">20
-                                            m</strong>
+                                        <label class="form-check-label me-2" for="chk-20m">
+                                            <strong id="label-20m">20
+                                        m</strong>
                                         </label>
                                         <div id="freq-20m-cb">14.097 Mhz</div>
                                     </div>
@@ -145,8 +397,9 @@
                                 <div class="d-inline-flex align-items-center" id="wrap-17m">
                                     <input class="form-check-input me-2" id="chk-17m" type="checkbox" value="">
                                     <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-17m">
-                                        <label class="form-check-label me-2" for="chk-17m"><strong id="label-17m">17
-                                            m</strong>
+                                        <label class="form-check-label me-2" for="chk-17m">
+                                            <strong id="label-17m">17
+                                        m</strong>
                                         </label>
                                         <div id="freq-17m-cb">18.106 MHz</div>
                                     </div>
@@ -160,8 +413,9 @@
                                 <div class="d-inline-flex align-items-center" id="wrap-15m">
                                     <input class="form-check-input me-2" id="chk-15m" type="checkbox" value="">
                                     <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-15m">
-                                        <label class="form-check-label me-2" for="chk-15m"><strong id="label-15m">15
-                                            m</strong>
+                                        <label class="form-check-label me-2" for="chk-15m">
+                                            <strong id="label-15m">15
+                                        m</strong>
                                         </label>
                                         <div id="freq-15m-cb">21.096 MHz</div>
                                     </div>
@@ -175,8 +429,9 @@
                                 <div class="d-inline-flex align-items-center" id="wrap-12m">
                                     <input class="form-check-input me-2" id="chk-12m" type="checkbox" value="">
                                     <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-12m">
-                                        <label class="form-check-label me-2" for="chk-12m"><strong id="label-12m">12
-                                            m</strong>
+                                        <label class="form-check-label me-2" for="chk-12m">
+                                            <strong id="label-12m">12
+                                        m</strong>
                                         </label>
                                         <div id="freq-12m-cb">24.926 MHz</div>
                                     </div>
@@ -190,8 +445,9 @@
                                 <div class="d-inline-flex align-items-center" id="wrap-10m">
                                     <input class="form-check-input me-2" id="chk-10m" type="checkbox" value="">
                                     <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-10m">
-                                        <label class="form-check-label me-2" for="chk-10m"><strong id="label-10m">10
-                                            m</strong>
+                                        <label class="form-check-label me-2" for="chk-10m">
+                                            <strong id="label-10m">10
+                                        m</strong>
                                         </label>
                                         <div id="freq-10m-cb">28.126 MHz</div>
                                     </div>
@@ -205,8 +461,9 @@
                                 <div class="d-inline-flex align-items-center" id="wrap-6m">
                                     <input class="form-check-input me-2" id="chk-6m" type="checkbox" value="">
                                     <div class="d-inline-flex align-items-center px-2 py-1 rounded" id="color-6m">
-                                        <label class="form-check-label me-2" for="chk-6m"><strong id="label-6m">6
-                                            m</strong>
+                                        <label class="form-check-label me-2" for="chk-6m">
+                                            <strong id="label-6m">6
+                                        m</strong>
                                         </label>
                                         <div id="freq-6m-cb">50.293 MHz</div>
                                     </div>
@@ -302,13 +559,15 @@
                 </div>
                 <div class="row progress-container" data-pg-collapsed id="greenProgressContainer">
                     <div class="g-0 progress mx-auto">
-                        <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0" class="progress-bar bg-success progress-bar-striped" id="progressBar" role="progressbar" style="width:0"><span id="progressLabel"></span>
+                        <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0" class="progress-bar bg-success progress-bar-striped" id="progressBar" role="progressbar" style="width:0">
+                            <span id="progressLabel"></span>
                         </div>
                     </div>
                 </div>
                 <div class="row progress-container" data-pg-collapsed id="redProgressContainer">
                     <div class="g-0 progress mx-auto">
-                        <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0" class="progress-bar bg-danger progress-bar-striped" id="TXprogressBAR" role="progressbar" style="width:0"><span id="TXProgressLabel"></span>
+                        <div aria-valuemax="111" aria-valuemin="0" aria-valuenow="0" class="progress-bar bg-danger progress-bar-striped" id="TXprogressBAR" role="progressbar" style="width:0">
+                            <span id="TXProgressLabel"></span>
                         </div>
                     </div>
                 </div>
@@ -429,7 +688,7 @@
         </div>
         <!-- Toast container -->
         <div class="toast-container" data-pg-collapsed>
-            <div aria-atomic="true" aria-live="assertive" class="toast align-items-center text-bg-warning border-0 " id="warningToast" role="alert" style="opacity:1;">
+            <div aria-atomic="true" aria-live="assertive" class="toast align-items-center text-bg-warning border-0 " id="NoCallsignWarningToast" role="alert" style="opacity:1;">
                 <div class="d-flex">
                     <div class="toast-body" style="font-size: 20px; background-color: #dbe60b; font-weight: bold;">
                         ⚠️ Enter your callsign and coordinates
@@ -437,10 +696,16 @@
                 </div>
             </div>
         </div>
+        <div class="toast-container position-fixed bottom-0 end-0 p-3">
+            <div id="NoWSPRdataToast" class="toast text-bg-warning border-0 show" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000" data-bs-autohide="true">
+                <div class="toast-body fw-bold fs-5" style="text-align: center; font-weight: normal; font-family: 'ABeeZee', sans-serif;">
+                    ⚠️ No hits to be reported yet
+</div>
+            </div>
+        </div>
     </main>
     <footer class="footer mt-auto py-3 bg-light" data-pg-collapsed>
-        <div class="container">
-            <span class="text-muted">HB9IIU May 2025</span>
+        <div class="container"><span class="text-muted">HB9IIU May 2025</span>
         </div>
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/leaflet.geodesic"></script>
@@ -461,7 +726,7 @@
     //WSPR_tx_Longitude = 6.8617024;  // Your station longitude
     cesiumAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzZjMzZDY3OS0yNjliLTRiMTAtOTgzMS1jZDgwOTUxMTk3YzEiLCJpZCI6MjI5ODU5LCJpYXQiOjE3MjE3Mzg4NTN9.vYEZOFmLFX3fgLX6f0EiLXjvVIHL9HHxac97c0JruZQ";
     let days_back = 2; // Default number of days
-
+    const spinner = document.getElementById('loadingSpinner');
 
     let powerTimer = null;
     let lastSentPower = null;
@@ -1106,7 +1371,7 @@
 
                 // Warning toast if no callsign
                 if (!WSPR_tx_Callsign || WSPR_tx_Callsign === "NOCALL") {
-                    const toastEl = document.getElementById("warningToast");
+                    const toastEl = document.getElementById("NoCallsignWarningToast");
                     if (toastEl) {
                         const toast = new bootstrap.Toast(toastEl, {autohide: true, delay: 5000});
                         toast.show();
@@ -1212,7 +1477,7 @@
 
                 let selectedBands = Object.keys(bandMapping).map(Number); // Initially select all bands
                 const slider = document.getElementById('time-slider');
-                const spinner = document.getElementById('loadingSpinner');
+                //const spinner = document.getElementById('loadingSpinner');
                 const searchBox = document.getElementById('searchBox');
                 const refreshButton = document.getElementById('refreshButton');
 
@@ -1274,17 +1539,17 @@
                 function fetchData(startMinutes, endMinutes) {
                     mapLayerGroup.clearLayers();
                     const query = `
-                SELECT *
-                FROM wspr.rx
-                WHERE time
-                    > subtractMinutes(now()
-                    , ${-startMinutes})
-                  AND time <= subtractMinutes(now()
-                    , ${-endMinutes})
-                  AND tx_sign = '${WSPR_tx_Callsign}'
-                ORDER BY time DESC
-                    LIMIT ${limit} FORMAT JSON
-            `;
+                        SELECT *
+                        FROM wspr.rx
+                        WHERE time
+                            > subtractMinutes(now()
+                            , ${-startMinutes})
+                          AND time <= subtractMinutes(now()
+                            , ${-endMinutes})
+                          AND tx_sign = '${WSPR_tx_Callsign}'
+                        ORDER BY time DESC
+                            LIMIT ${limit} FORMAT JSON
+                    `;
                     const url = `${WSPRurl}?query=${encodeURIComponent(query)}`;
                     console.log('Fetching data from wspr.rock');
                     spinner.style.display = 'block';
@@ -1300,6 +1565,10 @@
                             const data = jsonData.data;
                             if (data.length === 0) {
                                 renderErrorMessage('No data available');
+                                const toastEl = document.getElementById("NoWSPRdataToast");
+
+                                const toast = new bootstrap.Toast(toastEl, {autohide: true, delay: 1000});
+                                toast.show();
                                 return;
                             }
                             // here we remove duplicate rx_signs for faster plotting
@@ -1478,17 +1747,17 @@
                     const endMinutes = parseInt(values[1]);
 
                     const query = `
-                SELECT *
-                FROM wspr.rx
-                WHERE time
-                    > subtractMinutes(now()
-                    , ${-startMinutes})
-                  AND time <= subtractMinutes(now()
-                    , ${-endMinutes})
-                  AND tx_sign = '${WSPR_tx_Callsign}'
-                ORDER BY time DESC
-                    LIMIT ${limit} FORMAT JSON
-            `;
+                        SELECT *
+                        FROM wspr.rx
+                        WHERE time
+                            > subtractMinutes(now()
+                            , ${-startMinutes})
+                          AND time <= subtractMinutes(now()
+                            , ${-endMinutes})
+                          AND tx_sign = '${WSPR_tx_Callsign}'
+                        ORDER BY time DESC
+                            LIMIT ${limit} FORMAT JSON
+                    `;
                     const url = `${WSPRurl}?query=${encodeURIComponent(query)}`;
 
                     console.log('Executing query for updating displayed data:', query);
@@ -1595,36 +1864,36 @@
 
                     // Example city data
                     const cities = [
-                        { name: "New York", lat: 40.7128, lon: -74.0060 },
-                        { name: "London", lat: 51.5074, lon: -0.1278 },
-                        { name: "Tokyo", lat: 35.6895, lon: 139.6917 },
-                        { name: "Paris", lat: 48.8566, lon: 2.3522 },
-                        { name: "Beijing", lat: 39.9042, lon: 116.4074 },
-                        { name: "Moscow", lat: 55.7558, lon: 37.6173 },
-                        { name: "Berlin", lat: 52.5200, lon: 13.4050 },
-                        { name: "Rome", lat: 41.9028, lon: 12.4964 },
-                        { name: "Madrid", lat: 40.4168, lon: -3.7038 },
-                        { name: "Mexico City", lat: 19.4326, lon: -99.1332 },
-                        { name: "São Paulo", lat: -23.5505, lon: -46.6333 },
-                        { name: "Buenos Aires", lat: -34.6037, lon: -58.3816 },
-                        { name: "Cairo", lat: 30.0444, lon: 31.2357 },
-                        { name: "Lagos", lat: 6.5244, lon: 3.3792 },
-                        { name: "Johannesburg", lat: -26.2041, lon: 28.0473 },
-                        { name: "Istanbul", lat: 41.0082, lon: 28.9784 },
-                        { name: "Dubai", lat: 25.276987, lon: 55.296249 },
-                        { name: "Singapore", lat: 1.3521, lon: 103.8198 },
-                        { name: "Sydney", lat: -33.8688, lon: 151.2093 },
-                        { name: "Los Angeles", lat: 34.0522, lon: -118.2437 },
-                        { name: "Chicago", lat: 41.8781, lon: -87.6298 },
-                        { name: "Toronto", lat: 43.651070, lon: -79.347015 },
-                        { name: "San Francisco", lat: 37.7749, lon: -122.4194 },
-                        { name: "Hong Kong", lat: 22.3193, lon: 114.1694 },
-                        { name: "Seoul", lat: 37.5665, lon: 126.9780 },
-                        { name: "Bangkok", lat: 13.7563, lon: 100.5018 },
-                        { name: "Delhi", lat: 28.6139, lon: 77.2090 },
-                        { name: "Jakarta", lat: -6.2088, lon: 106.8456 },
-                        { name: "Manila", lat: 14.5995, lon: 120.9842 },
-                        { name: "Tehran", lat: 35.6892, lon: 51.3890 }
+                        {name: "New York", lat: 40.7128, lon: -74.0060},
+                        {name: "London", lat: 51.5074, lon: -0.1278},
+                        {name: "Tokyo", lat: 35.6895, lon: 139.6917},
+                        {name: "Paris", lat: 48.8566, lon: 2.3522},
+                        {name: "Beijing", lat: 39.9042, lon: 116.4074},
+                        {name: "Moscow", lat: 55.7558, lon: 37.6173},
+                        {name: "Berlin", lat: 52.5200, lon: 13.4050},
+                        {name: "Rome", lat: 41.9028, lon: 12.4964},
+                        {name: "Madrid", lat: 40.4168, lon: -3.7038},
+                        {name: "Mexico City", lat: 19.4326, lon: -99.1332},
+                        {name: "São Paulo", lat: -23.5505, lon: -46.6333},
+                        {name: "Buenos Aires", lat: -34.6037, lon: -58.3816},
+                        {name: "Cairo", lat: 30.0444, lon: 31.2357},
+                        {name: "Lagos", lat: 6.5244, lon: 3.3792},
+                        {name: "Johannesburg", lat: -26.2041, lon: 28.0473},
+                        {name: "Istanbul", lat: 41.0082, lon: 28.9784},
+                        {name: "Dubai", lat: 25.276987, lon: 55.296249},
+                        {name: "Singapore", lat: 1.3521, lon: 103.8198},
+                        {name: "Sydney", lat: -33.8688, lon: 151.2093},
+                        {name: "Los Angeles", lat: 34.0522, lon: -118.2437},
+                        {name: "Chicago", lat: 41.8781, lon: -87.6298},
+                        {name: "Toronto", lat: 43.651070, lon: -79.347015},
+                        {name: "San Francisco", lat: 37.7749, lon: -122.4194},
+                        {name: "Hong Kong", lat: 22.3193, lon: 114.1694},
+                        {name: "Seoul", lat: 37.5665, lon: 126.9780},
+                        {name: "Bangkok", lat: 13.7563, lon: 100.5018},
+                        {name: "Delhi", lat: 28.6139, lon: 77.2090},
+                        {name: "Jakarta", lat: -6.2088, lon: 106.8456},
+                        {name: "Manila", lat: 14.5995, lon: 120.9842},
+                        {name: "Tehran", lat: 35.6892, lon: 51.3890}
                     ];
 
 // Add labels
@@ -1644,8 +1913,6 @@
                     });
 
 
-
-
                 }
 
                 function updateSlotDuration(startMinutes, endMinutes) {
@@ -1654,6 +1921,7 @@
                     const minutes = durationInMinutes % 60;
                     slotDurationElement.textContent = `Slot duration: ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
                 }
+
                 // <— create the day/night overlay
                 // Create the terminator with custom style
                 let terminator = L.terminator({
@@ -1750,10 +2018,8 @@
                 }
 
 //fetch data for last 2 hours
+                console.log("fetching data")
                 fetchData(-120, 0);
-
-
-
 
 
             });
@@ -1873,351 +2139,335 @@
             })), this
         }
     }(jQuery)</script>
-
     <!-- Histograms-->
-<script>
+    <script>
 
-const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-console.log("User Timezone:", userTimezone);
-Highcharts.setOptions({
-time: {
-    useUTC: false
-}
-});
-let generatedData = [];
-
-
-async function fetchDataForHistograms(bandFilter, daysBack) {
-const now = new Date();
-const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-const hoursSinceStartOfToday = (now - startOfToday) / (1000 * 60 * 60);
-const totalHours = 24 * (daysBack - 1) + hoursSinceStartOfToday;
-
-console.log("Hours Since Midnight:", hoursSinceStartOfToday);
-
-const query = `
-    SELECT toTimeZone(time, '${userTimezone}') AS time, COUNT(*) AS count
-    FROM rx
-    WHERE tx_sign = '${WSPR_tx_Callsign}'
-      AND time
-        > subtractHours(now()
-        , ${totalHours})
-      AND band = ${bandFilter}
-    GROUP BY time
-    ORDER BY time ASC
-        FORMAT JSON
-`;
-
-const url = `${WSPRurl}?query=${encodeURIComponent(query)}`;
-
-try {
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`Network response was not ok: ${response.statusText}`);
-    }
-
-    const jsonData = await response.json();
-    const wsprData = jsonData.data;
-    console.log("bandFilter", bandFilter)
-    console.log(`Returned Data (5 last elements) for Band ${bandFilter}:`, wsprData.slice(-5));
-
-    if (!wsprData.length) {
-        console.warn("No data returned from the server.");
-        return false;
-    }
-
-    const firstTime = wsprData[0]?.time;
-    if (firstTime) {
-        const [datePart] = firstTime.split(' ');
-        const [year, month, day] = datePart.split('-').map(Number);
-
-        const startOfDay = new Date(year, month - 1, day, 0, 0, 0);
-        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-
-        generatedData = [];
-
-        const intervalMinutes = 2;
-        for (let time = startOfDay.getTime(); time <= endOfDay.getTime(); time += intervalMinutes * 60 * 1000) {
-            const date = new Date(time);
-            const formattedTime = date.toLocaleString('sv-SE', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            }).replace(',', '');
-
-            generatedData.push({
-                time: formattedTime,
-                count: '0'
-            });
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    console.log("User Timezone:", userTimezone);
+    Highcharts.setOptions({
+        time: {
+            useUTC: false
         }
+    });
+    let generatedData = [];
 
-        const wsprDataMap = new Map(wsprData.map(item => [item.time, item.count]));
 
-        generatedData.forEach(item => {
-            if (wsprDataMap.has(item.time)) {
-                item.count = wsprDataMap.get(item.time);
+    async function fetchDataForHistograms(bandFilter, daysBack) {
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        const hoursSinceStartOfToday = (now - startOfToday) / (1000 * 60 * 60);
+        const totalHours = 24 * (daysBack - 1) + hoursSinceStartOfToday;
+
+        console.log("Hours Since Midnight:", hoursSinceStartOfToday);
+
+        const query = `
+            SELECT toTimeZone(time, '${userTimezone}') AS time, COUNT(*) AS count
+            FROM rx
+            WHERE tx_sign = '${WSPR_tx_Callsign}'
+              AND time
+                > subtractHours(now()
+                , ${totalHours})
+              AND band = ${bandFilter}
+            GROUP BY time
+            ORDER BY time ASC
+                FORMAT JSON
+        `;
+
+        const url = `${WSPRurl}?query=${encodeURIComponent(query)}`;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Network response was not ok: ${response.statusText}`);
+            }
+
+            const jsonData = await response.json();
+            const wsprData = jsonData.data;
+            console.log("bandFilter", bandFilter)
+            console.log(`Returned Data (5 last elements) for Band ${bandFilter}:`, wsprData.slice(-5));
+
+            if (!wsprData.length) {
+                console.warn("No data returned from the server.");
+                return false;
+            }
+
+            const firstTime = wsprData[0]?.time;
+            if (firstTime) {
+                const [datePart] = firstTime.split(' ');
+                const [year, month, day] = datePart.split('-').map(Number);
+
+                const startOfDay = new Date(year, month - 1, day, 0, 0, 0);
+                const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+                generatedData = [];
+
+                const intervalMinutes = 2;
+                for (let time = startOfDay.getTime(); time <= endOfDay.getTime(); time += intervalMinutes * 60 * 1000) {
+                    const date = new Date(time);
+                    const formattedTime = date.toLocaleString('sv-SE', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    }).replace(',', '');
+
+                    generatedData.push({
+                        time: formattedTime,
+                        count: '0'
+                    });
+                }
+
+                const wsprDataMap = new Map(wsprData.map(item => [item.time, item.count]));
+
+                generatedData.forEach(item => {
+                    if (wsprDataMap.has(item.time)) {
+                        item.count = wsprDataMap.get(item.time);
+                    }
+                });
+
+                console.log("Final Merged Data:", generatedData);
+                return true;
+            }
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            return false;
+        }
+    }
+
+    function findDailyMaxima(data) {
+        const maxPerDay = {};
+
+        data.forEach(item => {
+            const date = item.time.split(' ')[0];
+            const value = parseInt(item.count);
+            if (!maxPerDay[date] || value > maxPerDay[date].value) {
+                maxPerDay[date] = {
+                    time: new Date(item.time).getTime(),
+                    value,
+                    formattedTime: Highcharts.dateFormat('%H:%M', new Date(item.time).getTime())
+                };
             }
         });
 
-        console.log("Final Merged Data:", generatedData);
-        return true;
+        return Object.values(maxPerDay);
     }
-} catch (error) {
-    console.error('Error fetching data:', error);
-    return false;
-}
-}
 
-function findDailyMaxima(data) {
-const maxPerDay = {};
-
-data.forEach(item => {
-    const date = item.time.split(' ')[0];
-    const value = parseInt(item.count);
-    if (!maxPerDay[date] || value > maxPerDay[date].value) {
-        maxPerDay[date] = {
-            time: new Date(item.time).getTime(),
-            value,
-            formattedTime: Highcharts.dateFormat('%H:%M', new Date(item.time).getTime())
-        };
+    function totalCount(data) {
+        return data.reduce((sum, item) => sum + parseInt(item.count), 0);
     }
-});
 
-return Object.values(maxPerDay);
-}
-
-function totalCount(data) {
-return data.reduce((sum, item) => sum + parseInt(item.count), 0);
-}
-
-function getPlotBandsForDays(data) {
-const plotBands = [];
-const days = {};
+    function getPlotBandsForDays(data) {
+        const plotBands = [];
+        const days = {};
 
 // Extract unique days from the data
-data.forEach(item => {
-    const day = item.time.split(' ')[0]; // Get the day (YYYY-MM-DD)
-    if (!days[day]) {
-        days[day] = {start: new Date(item.time).getTime(), end: new Date(item.time).getTime()};
-    } else {
-        days[day].end = new Date(item.time).getTime();
-    }
-});
+        data.forEach(item => {
+            const day = item.time.split(' ')[0]; // Get the day (YYYY-MM-DD)
+            if (!days[day]) {
+                days[day] = {start: new Date(item.time).getTime(), end: new Date(item.time).getTime()};
+            } else {
+                days[day].end = new Date(item.time).getTime();
+            }
+        });
 
 // New color scheme: Light/Dark Red for weekends, Light/Dark Gray for weekdays
-const weekendColors = ['#a9f4c7', '#a9f4c7']; // Light Red, Dark Red
-const weekdayColors = ['#D3D3D3', '#A9A9A9']; // Light Gray, Dark Gray
-let colorIndex = 0;
+        const weekendColors = ['#D3D3D3', '#A9A9A9'];
+        const weekdayColors = ['#D3D3D3', '#A9A9A9'];
+        let colorIndex = 0;
 
 // Generate plot bands for each day
-for (const [day, times] of Object.entries(days)) {
-    // Get the day of the week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-    const dateObj = new Date(day);
-    const dayOfWeek = dateObj.getDay();
+        for (const [day, times] of Object.entries(days)) {
+            // Get the day of the week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+            const dateObj = new Date(day);
+            const dayOfWeek = dateObj.getDay();
 
-    // Determine whether it's a weekend or a weekday
-    const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6); // Sunday (0) or Saturday (6)
+            // Determine whether it's a weekend or a weekday
+            const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6); // Sunday (0) or Saturday (6)
 
-    // Choose the appropriate color pair based on the day of the week
-    const dayColors = isWeekend ? weekendColors : weekdayColors;
+            // Choose the appropriate color pair based on the day of the week
+            const dayColors = isWeekend ? weekendColors : weekdayColors;
 
-    plotBands.push({
-        from: times.start,
-        to: times.end,
-        color: dayColors[colorIndex % dayColors.length], // Alternate colors
-        label: {
-            text: (() => {
-                const [yyyy, mm, dd] = day.split('-');
-                return `${dd}.${mm}.${yyyy.slice(2)}`; // Format as DD.MM.YY
-            })(),
-            style: {
-                color: '#000000',
-                fontSize: '12px'
-            }
+            plotBands.push({
+                from: times.start,
+                to: times.end,
+                color: dayColors[colorIndex % dayColors.length], // Alternate colors
+                label: {
+                    text: (() => {
+                        const [yyyy, mm, dd] = day.split('-');
+                        return `${dd}.${mm}.${yyyy.slice(2)}`; // Format as DD.MM.YY
+                    })(),
+                    style: {
+                        color: '#000000',
+                        fontSize: '12px'
+                    }
+                }
+            });
+
+
+            colorIndex++;
         }
-    });
 
+        return plotBands;
+    }
 
-    colorIndex++;
-}
-
-return plotBands;
-}
-
-function renderChart(data, band) {
-const maxValues = findDailyMaxima(data);
-const totalCounts = totalCount(data);
+    function renderChart(data, band) {
+        const maxValues = findDailyMaxima(data);
+        const totalCounts = totalCount(data);
 
 // If max value is less than 10, hide the chart
-if (Math.max(...maxValues.map(item => item.value)) < 4) {
-    const chartName = getChartContainerName(band);
-    document.getElementById(chartName).style.display = 'none'; // Hide the chart container
-    return; // Exit the function early to prevent chart rendering
-}
+        if (Math.max(...maxValues.map(item => item.value)) < 4) {
+            const chartName = getChartContainerName(band);
+            document.getElementById(chartName).style.display = 'none'; // Hide the chart container
+            return; // Exit the function early to prevent chart rendering
+        }
 
 // Otherwise, proceed with rendering the chart
-let chartName, chartTitle;
-    if (band == 1) {
-        chartName = "160m_chart_container";
-        chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 160 meters band";
-    }
-    else if (band == 3) {
-    chartName = "80m_chart_container";
-    chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 80 meters band";
-} else if (band == 7) {
-    chartName = "40m_chart_container";
-    chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 40 meters band";
-} else if (band == 10) {
-    chartName = "30m_chart_container";
-    chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 30 meters band";
+        let chartName, chartTitle;
+        if (band == 1) {
+            chartName = "160m_chart_container";
+            chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 160 meters band";
+        } else if (band == 3) {
+            chartName = "80m_chart_container";
+            chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 80 meters band";
+        } else if (band == 7) {
+            chartName = "40m_chart_container";
+            chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 40 meters band";
+        } else if (band == 10) {
+            chartName = "30m_chart_container";
+            chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 30 meters band";
 
-} else if (band == 14) {
-    chartName = "20m_chart_container";
-    chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 20 meters band";
+        } else if (band == 14) {
+            chartName = "20m_chart_container";
+            chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 20 meters band";
 
-} else if (band == 18) {
-    chartName = "17m_chart_container";
-    chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 17 meters band";
+        } else if (band == 18) {
+            chartName = "17m_chart_container";
+            chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 17 meters band";
 
-} else if (band == 21) {
-    chartName = "15m_chart_container";
-    chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 15 meters band";
+        } else if (band == 21) {
+            chartName = "15m_chart_container";
+            chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 15 meters band";
 
-} else if (band == 24) {
-    chartName = "12m_chart_container";
-    chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 12 meters band";
+        } else if (band == 24) {
+            chartName = "12m_chart_container";
+            chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 12 meters band";
 
-} else if (band == 28) {
-    chartName = "10m_chart_container";
-    chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 10 meters band";
+        } else if (band == 28) {
+            chartName = "10m_chart_container";
+            chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 10 meters band";
 
-    } else if (band == 50) {
-        chartName = "6m_chart_container";
-        chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 6 meters band";
-    }
-
-const maxValue = Math.max(...data.map(item => parseInt(item.count)));
-const yAxisMax = maxValue * 1.2;
-
-Highcharts.chart(chartName, {
-    chart: {type: 'column', zoomType: 'x'},
-    title: {text: chartTitle},
-    credits: {
-        enabled: false
-    },
-    xAxis: {
-        type: 'datetime',
-        labels: {
-            format: '{value:%H:%M}',
-            style: {fontSize: '10px'}
-        },
-        tickInterval: 3600 * 1000,
-        plotBands: getPlotBandsForDays(data) // Adding color bands for different days
-    },
-    yAxis: {
-        title: {text: 'Count'},
-        max: yAxisMax
-    },
-    tooltip: {
-        pointFormat: '<b>Time:</b> {point.x:%H:%M:%S}<br><b>Hits:</b> {point.y}'
-    },
-    series: [{
-        name: 'Count',
-        data: data.map(item => [new Date(item.time).getTime(), parseInt(item.count)]),
-        color: '#2b908f'
-    }, {
-        name: 'Daily Max',
-        type: 'scatter',
-        data: maxValues.map(item => ({
-            x: item.time,
-            y: item.value,
-            custom: {time: item.formattedTime}
-        })),
-        marker: {fillColor: '#ff0000', radius: 5},
-        dataLabels: {
-            enabled: true,
-            formatter: function () {
-                return this.point.custom.time;
-            },
-            style: {fontWeight: 'bold', color: '#1a436c', fontSize: '14px'},
-            y: -10
+        } else if (band == 50) {
+            chartName = "6m_chart_container";
+            chartTitle = totalCounts.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'") + " hits on 6 meters band";
         }
-    }]
-});
-}
 
-// Helper function to get the chart container name
-function getChartContainerName(band) {
-    if (band == 1) return "160m_chart_container";
-if (band == 3) return "80m_chart_container";
-if (band == 7) return "40m_chart_container";
-if (band == 10) return "30m_chart_container";
-if (band == 14) return "20m_chart_container";
-if (band == 18) return "17m_chart_container";
-if (band == 21) return "15m_chart_container";
-if (band == 24) return "12m_chart_container";
-if (band == 28) return "10m_chart_container";
-    if (band == 50) return "6m_chart_container";
-return "";
-}
+        const maxValue = Math.max(...data.map(item => parseInt(item.count)));
+        const yAxisMax = maxValue * 1.2;
 
-async function initialize(daysBack) {
-// Show spinner when initializing
-showSpinner();
-
-// Hide all chart containers
-    document.getElementById("160m_chart_container").style.display = 'none';
-document.getElementById("80m_chart_container").style.display = 'none';
-document.getElementById("40m_chart_container").style.display = 'none';
-document.getElementById("30m_chart_container").style.display = 'none';
-document.getElementById("20m_chart_container").style.display = 'none';
-document.getElementById("17m_chart_container").style.display = 'none';
-document.getElementById("15m_chart_container").style.display = 'none';
-document.getElementById("12m_chart_container").style.display = 'none';
-document.getElementById("10m_chart_container").style.display = 'none';
-document.getElementById("6m_chart_container").style.display = 'none';
-
-
-const bandKeys = [1,3, 7, 10, 14, 18, 21, 24, 28,50]; // Band keys for 20m, 40m, 80m, 15m, 10m
-
-for (let bandKey of bandKeys) {
-    if (await fetchDataForHistograms(bandKey, daysBack)) {
-        renderChart(generatedData, bandKey);
+        Highcharts.chart(chartName, {
+            chart: {type: 'column', zoomType: 'x'},
+            title: {text: chartTitle},
+            credits: {
+                enabled: false
+            },
+            xAxis: {
+                type: 'datetime',
+                labels: {
+                    format: '{value:%H:%M}',
+                    style: {fontSize: '10px'}
+                },
+                tickInterval: 3600 * 1000,
+                plotBands: getPlotBandsForDays(data) // Adding color bands for different days
+            },
+            yAxis: {
+                title: {text: 'Count'},
+                max: yAxisMax
+            },
+            tooltip: {
+                pointFormat: '<b>Time:</b> {point.x:%H:%M:%S}<br><b>Hits:</b> {point.y}'
+            },
+            series: [{
+                name: 'Count',
+                data: data.map(item => [new Date(item.time).getTime(), parseInt(item.count)]),
+                color: '#2b908f'
+            }, {
+                name: 'Daily Max',
+                type: 'scatter',
+                data: maxValues.map(item => ({
+                    x: item.time,
+                    y: item.value,
+                    custom: {time: item.formattedTime}
+                })),
+                marker: {fillColor: '#ff0000', radius: 5},
+                dataLabels: {
+                    enabled: true,
+                    formatter: function () {
+                        return this.point.custom.time;
+                    },
+                    style: {fontWeight: 'bold', color: '#1a436c', fontSize: '14px'},
+                    y: -10
+                }
+            }]
+        });
     }
-}
+
+    // Helper function to get the chart container name
+    function getChartContainerName(band) {
+        if (band == 1) return "160m_chart_container";
+        if (band == 3) return "80m_chart_container";
+        if (band == 7) return "40m_chart_container";
+        if (band == 10) return "30m_chart_container";
+        if (band == 14) return "20m_chart_container";
+        if (band == 18) return "17m_chart_container";
+        if (band == 21) return "15m_chart_container";
+        if (band == 24) return "12m_chart_container";
+        if (band == 28) return "10m_chart_container";
+        if (band == 50) return "6m_chart_container";
+        return "";
+    }
+
+    async function initialize(daysBack) {
+// Show spinner when initializing
+        spinner.style.display = 'block';
+
+// Hide all chart containersdocument.getElementById("160m_chart_container").style.display = 'none';
+        document.getElementById("80m_chart_container").style.display = 'none';
+        document.getElementById("40m_chart_container").style.display = 'none';
+        document.getElementById("30m_chart_container").style.display = 'none';
+        document.getElementById("20m_chart_container").style.display = 'none';
+        document.getElementById("17m_chart_container").style.display = 'none';
+        document.getElementById("15m_chart_container").style.display = 'none';
+        document.getElementById("12m_chart_container").style.display = 'none';
+        document.getElementById("10m_chart_container").style.display = 'none';
+        document.getElementById("6m_chart_container").style.display = 'none';
+
+
+        const bandKeys = [1, 3, 7, 10, 14, 18, 21, 24, 28, 50]; // Band keys for 20m, 40m, 80m, 15m, 10m
+
+        for (let bandKey of bandKeys) {
+            if (await fetchDataForHistograms(bandKey, daysBack)) {
+                renderChart(generatedData, bandKey);
+            }
+        }
 
 // After charts are rendered, hide spinner and show the charts
-hideSpinner();
-    document.getElementById("160m_chart_container").style.display = 'block';
+        spinner.style.display = 'none';
+        document.getElementById("160m_chart_container").style.display = 'block';
 
-document.getElementById("80m_chart_container").style.display = 'block';
-document.getElementById("40m_chart_container").style.display = 'block';
-document.getElementById("30m_chart_container").style.display = 'block';
-document.getElementById("20m_chart_container").style.display = 'block';
-document.getElementById("17m_chart_container").style.display = 'block';
-document.getElementById("15m_chart_container").style.display = 'block';
-document.getElementById("15m_chart_container").style.display = 'block';
-document.getElementById("10m_chart_container").style.display = 'block';
-    document.getElementById("6m_chart_container").style.display = 'block';
-}
-
-
-// Show spinner
-function showSpinner() {
-document.getElementById("loading-spinner").style.display = 'block';
-}
-
-// Hide spinner
-function hideSpinner() {
-document.getElementById("loading-spinner").style.display = 'none';
-}
+        document.getElementById("80m_chart_container").style.display = 'block';
+        document.getElementById("40m_chart_container").style.display = 'block';
+        document.getElementById("30m_chart_container").style.display = 'block';
+        document.getElementById("20m_chart_container").style.display = 'block';
+        document.getElementById("17m_chart_container").style.display = 'block';
+        document.getElementById("15m_chart_container").style.display = 'block';
+        document.getElementById("15m_chart_container").style.display = 'block';
+        document.getElementById("10m_chart_container").style.display = 'block';
+        document.getElementById("6m_chart_container").style.display = 'block';
+    }
 
 
-//initialize(1);
+    //initialize(1);
 </script>
-
-
 </body>
